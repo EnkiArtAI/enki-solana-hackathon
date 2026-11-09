@@ -1,0 +1,1347 @@
+/* Image View content, loaded with the view. The mounts load the frame separately. */
+
+/* ── The layout. Wide: 330 / fluid / rail. Medium: 300 / fluid / rail.
+   Stacked: one column, the history a drawer. */
+.iv-root {
+  position: relative;
+  display: grid;
+  grid-template-columns: 330px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  height: 100%;
+  overflow: hidden;
+  background: var(--enki-paper);
+  color: var(--enki-ink);
+  font-family: var(--font-sans), sans-serif;
+  font-size: 13px;
+}
+.iv-root button { font-family: inherit; }
+
+/* The column's own height, so Generate sits under the references, not at the
+   bottom of a tall window with a gap above it (Kev, 2026-10-14); a long
+   prompt still scrolls here while the foot stays put. */
+.iv-left-scroll {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  /* Never sideways: the Full prompt's words slide in from 26 px to the right and drew a scrollbar for those 0.3 s (Kev,
+     2026-10-29: "beim wechsel von variable to full prompt sehe ich kurz die horizontale scrollbar"). The y scroll clips
+     the x side anyway; this only takes the bar away. */
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 14px 18px 16px;
+}
+.iv-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 18px 14px;
+  border-top: 1px solid var(--enki-rule-2);
+  background: var(--enki-paper);
+  overflow-x: hidden;
+}
+
+/* ── Shared text bits. */
+.iv-label {
+  font: 400 10px/1.3 var(--font-jetbrains-mono), ui-monospace, monospace;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--enki-label-quiet);
+}
+.iv-hint { margin: -8px 0 0; font-size: 11.5px; line-height: 1.45; color: var(--enki-ink-3); text-wrap: pretty; }
+.iv-sub { font-size: 11.5px; color: var(--enki-ink-3); }
+.iv-note { margin: 0; font-size: 12.5px; color: var(--enki-ink-2); }
+.iv-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--enki-ember);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.iv-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+.iv-by-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--enki-ember);
+  font: 500 12.5px/1.3 var(--font-sans), sans-serif;
+  cursor: pointer;
+}
+.iv-by-link:hover { color: var(--enki-ink); }
+.iv-rating { display: inline-flex; align-items: center; gap: 4px; font: 400 11px/1 var(--font-mono), monospace; color: var(--enki-ink-2); }
+.iv-rating > span:first-child { color: var(--enki-ember); }
+.iv-rating > span:last-child { color: var(--enki-ink-3); }
+.iv-act {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--enki-rule);
+  border-radius: 999px;
+  background: var(--enki-paper);
+  color: var(--enki-ink-2);
+  font: 500 12px/1 var(--font-sans), sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.iv-act:hover:not(:disabled) { border-color: var(--enki-ink-3); color: var(--enki-ink); }
+.iv-act:disabled { opacity: 0.45; cursor: default; }
+
+/* ── Prompt and values. */
+.iv-prompt { display: flex; flex-direction: column; gap: 16px; }
+.iv-sec-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 26px; }
+.iv-sec-tools { display: inline-flex; align-items: center; gap: 6px; }
+.iv-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--enki-rule);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--enki-ink-3);
+  cursor: pointer;
+}
+.iv-copy:hover { border-color: var(--enki-ink-3); color: var(--enki-ink); }
+.iv-pm { --kit-fs: 14.5px; --kit-lh: 1.55; --kit-pad: 12px 14px; --kit-radius: 14px; }
+.iv-count { margin: -10px 0 0; font: 400 11px/1 var(--font-mono), monospace; color: var(--enki-ink-3); text-align: right; }
+.iv-count[data-over] { color: var(--enki-danger); }
+
+/* Expert's document (handoff §5.3, prototype S:446-463): ember the creator's values, green the buyer's own. */
+.iv-prompt[data-doc] { gap: 0; }
+.iv-doc-tools { display: flex; align-items: baseline; gap: 12px; }
+.iv-prompt[data-doc] .iv-doc-tools { padding: 0 0 12px; }
+.iv-doc-hint { font-size: 13px; line-height: 1.45; color: var(--enki-ink-3); text-wrap: pretty; }
+.iv-doc-tools .iv-sec-tools { margin-left: auto; gap: 10px; }
+.iv-doc-tools .iv-link { color: var(--enki-ink-3); font-size: 12.5px; white-space: nowrap; }
+.iv-doc {
+  color: var(--enki-ink-2);
+  font: 400 17px/1.75 var(--font-sans), sans-serif;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+  animation: iv-in-r 0.3s cubic-bezier(0.3, 0.7, 0.3, 1);
+}
+.iv-word { cursor: text; }
+/* The words between two tokens, one run typed into where it stands (PromptPanel): the focus draws nothing but the caret
+   (Kev, 2026-10-29: "just lemme change texts without the UI actually changing at all"). */
+.iv-run { outline: 0; cursor: text; }
+/* An empty run (a token opens or ends the text, or two meet) is 1ch to click into; at the start it sits left of the
+   text, so the first line keeps its place. */
+.iv-run:empty { padding-inline-end: 1ch; }
+.iv-run:empty:first-child { margin-inline-start: -1ch; }
+/* A multi-choice's or a slider's field in the panel under the words takes the row, Done beside it while it fits. */
+.iv-active .kit-field { flex: 1 1 260px; }
+.iv-caret { display: inline-block; width: 2px; height: 1.05em; margin: 0 3px 0 -1px; border-radius: 1px; background: var(--enki-ink); vertical-align: -0.15em; }
+.iv-tok {
+  --iv-tone: var(--enki-ember);
+  display: inline;
+  padding: 1px 5px;
+  border: 0;
+  border-bottom: 2px dashed color-mix(in oklab, var(--iv-tone) 55%, transparent);
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--iv-tone) 9%, transparent);
+  color: var(--iv-tone);
+  font: inherit;
+  font-weight: 500;
+  outline: 0;
+  cursor: text;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+.iv-tok[data-changed] { --iv-tone: var(--enki-green); }
+button.iv-tok { cursor: pointer; }
+.iv-tok[data-on],
+.iv-tok:focus-visible { background: color-mix(in oklab, var(--iv-tone) 16%, transparent); }
+.iv-tok:focus { border-bottom-style: solid; }
+/* An empty value shows its label, never as text the blur could commit. */
+.iv-tok:empty::before { content: attr(data-placeholder); color: var(--enki-ink-3); font-weight: 400; opacity: 0.8; }
+.iv-tok[data-off] { text-decoration: line-through; opacity: 0.6; }
+/* An image: its photo, ringed as the buyer's own; dashed while empty; ink while picked. 36 px, 30 on the phone. */
+.iv-tok-img {
+  position: relative;
+  top: -2px;
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  margin: 0 4px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 10px;
+  background: #e7f0f5;
+  box-shadow: 0 0 0 2px var(--enki-photo-ring);
+  vertical-align: middle;
+  cursor: pointer;
+}
+span.iv-tok-img { cursor: default; }
+.iv-tok-img[data-empty] { border: 1.5px dashed #8db3c9; box-shadow: none; }
+.iv-tok-img[data-on] { box-shadow: 0 0 0 2px var(--enki-ink); }
+.iv-tok-img img { width: 100%; height: 100%; object-fit: cover; }
+/* An image is dragged to move it in the text (PromptPanel): a long press lifts it instead of opening the phone's
+   image menu, and the one held fades while the cursor shows where it lands. */
+button.iv-tok-img { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+.iv-tok-img[data-dragged] { opacity: 0.35; }
+/* The press is the button's, not the picture's: Android's image menu never opens on a hold (review 2026-10-26). */
+button.iv-tok-img img { pointer-events: none; }
+/* The picked element's panel, pinned to the scroller's foot; "more settings" waits while it shows. */
+.iv-active {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin-top: 8px;
+  padding: 10px 0 4px;
+  border-top: 1px solid var(--enki-rule-2);
+  background: var(--enki-paper);
+}
+[data-scroll]:has(.iv-active) .iv-more { display: none; }
+.iv-active-label { font-size: 12px; font-weight: 600; color: var(--enki-ink); }
+.iv-chip {
+  max-width: 240px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: none;
+  color: var(--enki-ink-2);
+  font-size: 14.5px;
+  text-decoration: underline;
+  text-decoration-color: var(--enki-rule);
+  text-underline-offset: 3px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.iv-chip[data-on] { color: var(--enki-ember); text-decoration-color: var(--enki-ember); }
+.iv-chip[data-quiet] { color: var(--enki-ink-3); }
+.iv-chip[data-danger] { color: var(--enki-danger); text-decoration-color: color-mix(in oklab, var(--enki-danger) 35%, transparent); }
+.iv-done {
+  height: 28px;
+  margin-left: auto;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--cta-bg);
+  color: var(--cta-ink);
+  font-size: 12.5px;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(125, 29, 51, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+}
+@keyframes iv-in-r { from { transform: translateX(26px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .iv-doc { animation: none; }
+}
+
+.iv-fields { display: flex; flex-direction: column; gap: 10px; }
+.iv-fields > .iv-sec-head { margin-bottom: -4px; }
+
+/* ── Agent row, settings, Generate. */
+.iv-agent { display: flex; flex-direction: column; }
+/* The fold: a grid track from 0 to the content's height, quick both ways (Kev, 2026-10-13). */
+.iv-agent-fold { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.18s ease; }
+.iv-agent-fold[data-open] { grid-template-rows: 1fr; }
+.iv-agent-fold-in { display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow: hidden; }
+.iv-agent-fold-in > :first-child { margin-top: 8px; }
+.iv-agent-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 36px;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: var(--enki-ink-2);
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.iv-agent-toggle > svg { flex-shrink: 0; color: var(--enki-ink-3); }
+/* One line at most, ending in … where it runs short (Kev, 2026-10-27: "eine zeile lang max, reicht"). */
+.iv-agent-toggle > span:first-of-type { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.iv-agent-badge {
+  padding: 1px 5px;
+  border: 1px solid var(--enki-rule);
+  border-radius: 4px;
+  font: 400 10.5px/1.3 var(--font-mono), monospace;
+  letter-spacing: 0.06em;
+  color: var(--enki-ink-3);
+}
+.iv-agent-chev { transition: transform 0.2s; }
+.iv-agent-toggle[aria-expanded="true"] .iv-agent-chev { transform: rotate(180deg); }
+/* The request wraps inside the block, short of the copy icon in its corner;
+   nothing scrolls sideways or runs under the icon (Kev, 2026-10-13). */
+.iv-code {
+  position: relative;
+  margin: 0;
+  padding: 10px 44px 10px 12px;
+  border-radius: 12px;
+  background: var(--enki-stage);
+  color: var(--enki-on-stage);
+  font: 400 10.5px/1.55 var(--font-mono), monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.iv-code-copy {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid color-mix(in oklab, var(--enki-on-stage) 25%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--enki-on-stage) 8%, transparent);
+  color: var(--enki-on-stage);
+  cursor: pointer;
+}
+.iv-code-copy:hover { background: color-mix(in oklab, var(--enki-on-stage) 16%, transparent); }
+.iv-agent-note { margin: 0; font-size: 11px; line-height: 1.45; color: var(--enki-ink-3); text-wrap: pretty; }
+
+/* The bar wraps and never scrolls sideways (handoff §0). */
+.iv-bar { --kit-pill-h: 34px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.iv-gen { position: relative; }
+
+/* ── Stage. The box is as large as the area allows at the picture's ratio. */
+.iv-stage {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: calc(100% - 128px);
+  min-height: 360px;
+  container-type: size;
+}
+.iv-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: min(100cqh, calc(100cqw / var(--ar)));
+  aspect-ratio: var(--ar);
+  max-width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--enki-paper-3);
+  box-shadow: var(--enki-shadow-pop);
+}
+.iv-box[data-state="rendering"] { background: var(--enki-stage); }
+.iv-box[data-state="failed"] { background: color-mix(in oklab, var(--enki-danger) 14%, var(--enki-stage)); }
+.iv-open { display: block; width: 100%; height: 100%; padding: 0; border: 0; background: none; cursor: zoom-in; }
+.iv-open img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.iv-video { display: block; width: 100%; height: 100%; object-fit: contain; background: var(--enki-stage); }
+.iv-empty { margin: 0; padding: 16px; font: italic 400 17px/1.3 var(--font-serif), Georgia, serif; color: var(--enki-ink-3); text-align: center; }
+.iv-ring {
+  box-sizing: border-box;
+  width: 34px;
+  height: 34px;
+  border: 3px solid color-mix(in oklab, var(--enki-on-stage) 20%, transparent);
+  border-top-color: var(--enki-on-stage);
+  border-radius: 50%;
+  animation: kit-spin 0.9s linear infinite;
+}
+.iv-fail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  max-width: 340px;
+  padding: 16px;
+  color: color-mix(in oklab, var(--enki-on-stage) 90%, transparent);
+  font-size: 13px;
+  line-height: 1.45;
+  text-align: center;
+  text-wrap: pretty;
+}
+.iv-bang {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  box-sizing: border-box;
+  border: 2px solid var(--enki-danger);
+  border-radius: 50%;
+  color: var(--enki-danger);
+  font: 600 22px/1 var(--font-sans), sans-serif;
+}
+.iv-retry {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--enki-rule);
+  border-radius: 999px;
+  background: var(--enki-paper);
+  color: var(--enki-ink);
+  font-size: 12px;
+  cursor: pointer;
+}
+.iv-retry:disabled { opacity: 0.55; cursor: default; }
+/* The references of someone's public image (DEC-514): small squares above the stage's label, twice their size under the
+   pointer and back when it leaves; a tap or click opens one large. */
+.iv-refs { position: absolute; left: 10px; bottom: 40px; display: flex; gap: 6px; z-index: 1; }
+.iv-ref {
+  --s: clamp(30px, 9cqmin, 46px);
+  width: var(--s);
+  height: var(--s);
+  padding: 0;
+  border: 1.5px solid color-mix(in oklab, var(--enki-on-stage) 75%, transparent);
+  border-radius: 9px;
+  background: var(--enki-stage) center / cover no-repeat;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  cursor: zoom-in;
+  transform-origin: left bottom;
+  transition: transform 0.18s ease;
+}
+@media (hover: hover) { .iv-ref:hover { position: relative; z-index: 1; transform: scale(2); } }
+.iv-ref:focus-visible { outline: 2px solid var(--enki-ember); outline-offset: 2px; }
+.iv-vrefs { display: flex; flex-direction: column; gap: 6px; }
+.iv-vrefs > span { font: 400 10px/1.3 var(--font-jetbrains-mono), ui-monospace, monospace; letter-spacing: 2px; text-transform: uppercase; color: color-mix(in oklab, var(--enki-on-stage) 60%, transparent); }
+.iv-vrefs-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.iv-vrefs-row .iv-ref { --s: 44px; }
+.iv-meta {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  display: inline-flex;
+  align-items: center;
+  max-width: calc(100% - 20px);
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--enki-stage) 58%, transparent);
+  color: var(--enki-on-stage);
+  font: 400 10px/1 var(--font-mono), monospace;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+/* A player draws its timeline along the bottom edge: the chip takes the top there, or it lies over the start of the bar. */
+.iv-box:has(.iv-video) .iv-meta { top: 10px; bottom: auto; }
+.iv-x {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--enki-rule);
+  border-radius: 50%;
+  background: var(--enki-paper);
+  color: var(--enki-ink-2);
+  box-shadow: var(--enki-shadow-pop);
+  cursor: pointer;
+}
+.iv-x:hover { color: var(--enki-ink); }
+
+/* ── Strip. */
+.iv-strip { position: relative; display: flex; align-items: center; gap: 6px; }
+.iv-strip-arrow {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--enki-rule);
+  border-radius: 50%;
+  background: var(--enki-paper);
+  color: var(--enki-ink-3);
+  cursor: pointer;
+}
+.iv-strip-arrow:disabled { opacity: 0.35; cursor: default; }
+.iv-strip-row { flex: 1; min-width: 0; overflow-x: auto; scroll-behavior: smooth; }
+.iv-strip-track { display: flex; gap: 8px; width: max-content; padding: 3px 2px; }
+.iv-strip-track .kit-tile { --kit-tile-radius: 9px; box-shadow: none; }
+.iv-thumb {
+  flex: none;
+  height: 64px;
+  min-width: 40px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 9px;
+  overflow: hidden;
+  background: var(--enki-paper-3);
+  cursor: pointer;
+}
+.iv-thumb[aria-pressed="true"] { border-color: var(--enki-ember); }
+.iv-thumb img { display: block; width: auto; height: 100%; object-fit: cover; }
+/* The maker's name over an image made with the prompt (Kev, 2026-10-13): on hover
+   or focus, always where there is no hover; a link to their profile unless it is you. */
+.iv-thumb-wrap { position: relative; flex: none; display: inline-flex; }
+.iv-thumb-by {
+  position: absolute;
+  left: 5px;
+  bottom: 5px;
+  max-width: calc(100% - 10px);
+  padding: 2px 7px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--enki-stage) 72%, transparent);
+  color: var(--enki-on-stage);
+  font: 500 10px/1.4 var(--font-sans), sans-serif;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transition: opacity 120ms ease;
+  pointer-events: none;
+}
+.iv-thumb-wrap:hover .iv-thumb-by,
+.iv-thumb-wrap:focus-within .iv-thumb-by { opacity: 1; }
+.iv-thumb-wrap:hover button.iv-thumb-by,
+.iv-thumb-wrap:focus-within button.iv-thumb-by { pointer-events: auto; cursor: pointer; }
+button.iv-thumb-by:hover { background: var(--enki-ember); color: var(--enki-paper); }
+@media (hover: none) {
+  .iv-thumb-by { opacity: 1; }
+  button.iv-thumb-by { pointer-events: auto; }
+}
+
+.iv-av {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  overflow: hidden;
+}
+/* Never under 16 px on a touch screen, so iOS does not zoom on focus: the
+   review's words, and the document's values (the words' own editor follows
+   the kit's rule). */
+@media (pointer: coarse) {
+  .iv-rv-text,
+  .iv-tok { font-size: 16px; }
+}
+.iv-send {
+  flex-shrink: 0;
+  height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--cta-bg);
+  color: var(--cta-ink);
+  font: 500 12.5px/1 var(--font-sans), sans-serif;
+  cursor: pointer;
+}
+.iv-send:disabled { background: var(--enki-paper-3); color: var(--enki-ink-2); cursor: default; }
+.iv-star {
+  width: 20px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--enki-ink-3);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+.iv-star[data-on] { color: var(--enki-ember); }
+/* On a touch screen a star's target grows up and down only: a 44 px square
+   would reach into the next star, so a tap would rate one higher. */
+@media (pointer: coarse) {
+  .iv-star { position: relative; }
+  .iv-star::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: 44px;
+    transform: translateY(-50%);
+  }
+}
+
+/* ── The viewer's panel (on the always-dark stage). */
+.iv-vpanel {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 100%;
+  padding: 24px;
+  color: var(--enki-on-stage);
+}
+.iv-vnote { margin: 0; font-size: 12.5px; line-height: 1.45; color: color-mix(in oklab, var(--enki-on-stage) 60%, transparent); }
+/* What the image was made with (DEC-508): a free prompt's words, scrolling past a third of the window, with Copy; a
+   premium prompt's settings on one line under its label. */
+.iv-vprompt { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.iv-vprompt-text { max-height: 34vh; margin: 0; overflow-y: auto; font-size: 13px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; color: color-mix(in oklab, var(--enki-on-stage) 88%, transparent); }
+.iv-vprompt-copy { padding: 0; border: 0; background: none; font-size: 12px; font-weight: 600; color: var(--enki-on-stage); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.iv-vsettings { display: flex; flex-direction: column; gap: 4px; margin: 0; font-size: 13px; color: color-mix(in oklab, var(--enki-on-stage) 88%, transparent); }
+.iv-vsettings span { font: 400 10px/1.3 var(--font-jetbrains-mono), ui-monospace, monospace; letter-spacing: 2px; text-transform: uppercase; color: color-mix(in oklab, var(--enki-on-stage) 60%, transparent); }
+.iv-vmeta { margin: 0; font-size: 11px; color: color-mix(in oklab, var(--enki-on-stage) 55%, transparent); }
+.iv-public { position: relative; display: flex; align-items: center; gap: 10px; font-size: 12px; color: color-mix(in oklab, var(--enki-on-stage) 80%, transparent); cursor: pointer; }
+.iv-public input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; }
+.iv-switch {
+  position: relative;
+  flex: none;
+  width: 36px;
+  height: 22px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--enki-on-stage) 18%, transparent);
+  transition: background 0.14s;
+}
+.iv-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--enki-on-stage);
+  transition: transform 0.14s;
+}
+.iv-public input:checked + .iv-switch { background: var(--enki-turq); }
+.iv-public input:checked + .iv-switch::after { transform: translateX(14px); }
+.iv-public input:focus-visible + .iv-switch { outline: 2px solid var(--enki-ember); outline-offset: 2px; }
+.iv-public-text { display: flex; flex-direction: column; gap: 2px; }
+.iv-public-text > span { font-size: 11px; color: color-mix(in oklab, var(--enki-on-stage) 55%, transparent); }
+.iv-vreport {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: color-mix(in oklab, var(--enki-on-stage) 60%, transparent);
+  font: 400 11px/1.3 var(--font-sans), sans-serif;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.iv-vacts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: auto; }
+.iv-vact {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 56px;
+  padding: 10px 4px;
+  border: 1px solid color-mix(in oklab, var(--enki-on-stage) 18%, transparent);
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--enki-on-stage) 8%, transparent);
+  color: var(--enki-on-stage);
+  font: 400 10.5px/1.2 var(--font-sans), sans-serif;
+  cursor: pointer;
+}
+.iv-vact:hover { background: color-mix(in oklab, var(--enki-on-stage) 14%, transparent); }
+.iv-vact[data-primary] {
+  grid-column: 1 / -1;
+  border-color: transparent;
+  background: var(--enki-on-stage);
+  color: var(--enki-stage);
+  font-weight: 600;
+}
+.iv-vact:disabled { opacity: 0.55; cursor: default; }
+/* Regenerate's price, a second line (spec-imageview-mobile D10). */
+.iv-vprice { font: 500 10px/1 var(--font-mono), monospace; opacity: 0.75; }
+/* BookmarkPicker inside the viewer's sheet: in the flow, not floating. */
+.iv-sheet-bmp .enki-bmp { position: static; width: auto; padding: 0; border: 0; box-shadow: none; background: transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+  .iv-agent-chev { transition: none; }
+  .iv-agent-fold { transition: none; }
+}
+
+/* ── v2 desktop (handoff §3, §5.2-5.4, §5.10): the page's header, then the
+   composer beside the picture column. The rail keeps the right edge for now. */
+/* A short window (Kev, 2026-10-26: "wenn window so komisch klein ist, kann ich gar nichts mehr machen"): the page lays
+   out at least 620 px tall and scrolls, so no part of the composer is squeezed out of reach. */
+.iv-root.iv-v2 { display: flex; overflow-y: auto; }
+.iv-v2 .iv-main { min-height: 620px; }
+.iv-main { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.iv-top {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 72px;
+  padding: 0 40px 0 32px;
+}
+.ek-root--closed .iv-top { padding-left: 44px; }
+.iv-top-left { display: flex; align-items: center; gap: 10px; }
+.iv-top-right { display: flex; align-items: center; gap: 14px; }
+.iv-top-logo { display: none; height: 26px; margin-right: 8px; }
+.iv-top-cat { font-size: 13.5px; font-weight: 600; color: var(--enki-ink-2); white-space: nowrap; }
+.ek-root--closed .iv-top-logo { display: block; }
+.iv-back,
+.iv-pact {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--enki-fill);
+  color: var(--enki-ink-2);
+  cursor: pointer;
+}
+.iv-back:hover,
+.iv-pact:hover { background: var(--enki-fill-hover); color: var(--enki-ink); }
+.iv-pact[data-on="saved"] { color: var(--enki-ember); }
+.iv-pacts { display: flex; gap: 6px; }
+.iv-login {
+  height: 34px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--cta-bg);
+  color: var(--cta-ink);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.iv-grid {
+  /* The picture column: as wide as the square hero the window's height leaves (header 72, padding 8 + 40,
+     meta row 32, two 12 px gaps, examples 112: 288), plus the History strip, so the column never overflows
+     a short window. The composer keeps its 360 px (Kev, 2026-10-21: the main image takes the screen). */
+  --iv-col: calc(max(100dvh - var(--ek-banner-h, 0px), 620px) - 288px + var(--iv-strip, 0px));
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(360px, 1fr) minmax(0, var(--iv-col));
+  grid-template-rows: minmax(0, 1fr);
+  gap: 72px;
+  min-height: 0;
+  padding: 8px 40px 40px 72px;
+}
+.iv-lcol { display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0; }
+/* The actions stay beside the title (plan Q16): the title wraps in its own room, under its two-line clamp. */
+.iv-titles { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
+.iv-titles-text { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+/* The clamp's clip starts at the font's ascent, not the line box (0.88 em), so Ä, É and Å keep their marks. */
+.iv-make {
+  display: -webkit-box;
+  margin: -0.11em 0 0;
+  padding-top: 0.11em;
+  overflow: hidden;
+  font: 400 36px/1.08 var(--font-serif), Georgia, serif;
+  letter-spacing: -0.01em;
+  color: var(--enki-ink);
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+/* v2: the scroller keeps its own height, so the foot follows the content (Kev, 2026-10-14); the photo area
+   measures the column's rest below the foot and grows its squares into it (PhotoDeck). A plain prompt's scroller
+   fills the column instead: its words take that room down to the agent row (PlainPrompt). 9 px on the left, taken
+   back by the margin, hold the words' frame, which reaches 9 px past the text (.iv-plain-words). */
+.iv-v2 .iv-left-scroll { margin-left: -9px; padding: 0 10px 10px 9px; }
+.iv-v2 .iv-left-scroll:has(> .iv-plain) { flex-grow: 1; }
+/* Generate is never squeezed (as on the phone); the open x402 fold above it scrolls within itself instead. */
+.iv-v2 .iv-foot { flex-shrink: 0; gap: 12px; padding: 14px 0 0; border-top: 1px solid var(--enki-rule-2); }
+/* Generate's glow stays inside the foot, which clips (overflow-x: hidden): 8 px under the button, none at its sides,
+   so it is never cut into a hard edge (Kev, 2026-10-29: "der schatten ... wird unten am rand kantig"; DEC-503). */
+.iv-foot .kit-gen--hero:not([data-short]) { box-shadow: 0 8px 12px -12px color-mix(in oklab, var(--enki-ember) 32%, transparent); }
+.iv-v2 .iv-lcol > .iv-agent .iv-agent-fold-in { max-height: min(25dvh, 300px); overflow-y: auto; }
+/* The settings row (handoff §5.11): one line of 38 px pills, the open one outlined in ink; a second line only
+   where a narrow composer cannot hold them, never a pill clipped out of reach. */
+.iv-foot .iv-bar { --kit-pill-h: 38px; flex-wrap: wrap; min-width: 0; }
+.iv-foot .kit-pill { gap: 5px; padding: 0 9px 0 10px; font-size: 13.5px; font-weight: 500; }
+.iv-foot .kit-pill:hover:not(:disabled) { border-color: var(--enki-ink-3); }
+.iv-foot .kit-pill[aria-expanded="true"] { border-color: var(--enki-ink); }
+.iv-foot .kit-caret { font-size: 9px; }
+.iv-reset {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: var(--kit-pill-h, 38px);
+  height: var(--kit-pill-h, 38px);
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: var(--enki-fill);
+  color: var(--enki-ink-2);
+  font-size: 14px;
+  cursor: pointer;
+}
+.iv-reset:hover { background: var(--enki-fill-hover); color: var(--enki-ink); }
+.iv-rcol {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  justify-self: end;
+  /* At the top, never centred: who made it keeps its place, and a wide picture's shorter hero moves up under it with the
+     examples right below (Kev, 2026-10-29: "the user name ... must always be placed at the für sich specific spot at the
+     top, if the image is breit, then just push the image above and then put the other examples below"). */
+  align-self: start;
+  width: 100%;
+  max-width: var(--iv-col);
+  min-width: 0;
+  max-height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+/* Who made it and the reviews at 15 px (Kev, 2026-10-26: "bisschen zu klein"), the artist's link with them. */
+.iv-metarow { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 10px; min-height: 32px; font-size: 15px; color: var(--enki-ink-2); }
+.iv-meta-by { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; }
+.iv-meta-by .iv-by-link { font-size: inherit; font-weight: 600; color: var(--enki-ink); }
+/* A narrow column: the artist's name gives way (…), never the rating or the review + under the Premium badge. The link
+   clips itself, so its own focus ring is not cut. */
+.iv-meta-by > :not(:first-child) { flex-shrink: 0; }
+.iv-meta-by > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.iv-meta-by > span:first-child:has(> .iv-by-link) { display: flex; gap: 0.25em; overflow: visible; }
+.iv-meta-by .iv-by-link { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.iv-meta-dot { color: var(--enki-rule); }
+.iv-meta-none { font-weight: 500; color: var(--enki-ink-3); }
+.iv-premium {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 7px;
+  background: var(--enki-paper);
+  color: var(--enki-ember);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.iv-premium b { font: 600 12.5px/1 var(--font-mono), monospace; }
+.iv-herorow { display: flex; flex-shrink: 0; align-items: stretch; gap: 14px; }
+/* A square, or the picture's own shape when it is wider (--hero-ar from ImageViewDesktop): a wide picture fills the
+   hero edge to edge with no empty band above or below it (Kev, 2026-10-29). */
+.iv-hero {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  aspect-ratio: var(--hero-ar, 1);
+  border-radius: 34px;
+  overflow: hidden;
+}
+.iv-hero .iv-stage { position: absolute; inset: 0; height: auto; min-height: 0; }
+/* The square holds the picture's place and paints nothing: no grey bands beside a portrait or above a landscape, the
+   arrows alone on the page (Kev, 2026-10-29; DEC-502). The picture takes the square's corners, at every ratio. */
+.iv-hero .iv-box { border-radius: 34px; box-shadow: none; }
+/* The header's Back leaves the page; the stage's own X would be a second way out. */
+.iv-v2 .iv-x { display: none; }
+
+/* ── The buyer's photos (handoff §5.6, README §5.1): one row of cards that overlap once they do not fit (DEC-527). */
+.iv-deck { display: flex; flex-direction: column; gap: 6px; padding: 0 0 14px; border-bottom: 1px solid var(--enki-rule-2); }
+/* Its own stacking context: the tiles' z-indexes order the tiles only, never over the sticky head above. */
+.iv-deck-box { position: relative; isolation: isolate; transition: height 0.25s ease; }
+.iv-deck-box[data-drop] { border-radius: 14px; outline: 2px dashed var(--enki-ember); outline-offset: 2px; }
+.iv-photo {
+  position: absolute;
+  box-sizing: border-box;
+  background: var(--enki-paper-3) center / cover no-repeat;
+  touch-action: pan-y;
+  /* A hover lifts and lets go quickly (Kev, 2026-10-21); a place that moves takes its time. */
+  transition: left 0.3s ease, top 0.3s ease, width 0.3s ease, height 0.3s ease, transform 0.12s ease-out, box-shadow 0.12s ease-out, filter 0.12s ease-out;
+}
+.iv-photo[data-own] { box-shadow: 0 0 0 2px var(--enki-photo-ring); }
+/* The handoff's pale blue for a slot that waits for a photo, mixed into the theme's paper. */
+.iv-photo[data-empty] { border: 2px dashed #8db3c9; background: color-mix(in srgb, #8db3c9 22%, var(--enki-paper)); color: var(--enki-ref-ink); }
+.dark .iv-photo[data-empty], .dark .iv-refimg-plus { color: #8db3c9; }
+/* No photo yet and none named by the text: the one place is the "+" itself, in the "+"'s own look (.iv-photo-add). */
+.iv-photo[data-add] { border-color: var(--enki-rule); background: transparent; color: var(--enki-ink-3); }
+.iv-photo[data-add]:hover { border-color: var(--enki-ink-3); color: var(--enki-ink-2); }
+.iv-photo[data-pending] { opacity: 0.55; }
+.iv-photo[data-over] { box-shadow: 0 0 0 2px var(--enki-danger); opacity: 0.6; }
+.iv-photo-pick { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: inherit; background: transparent; color: inherit; cursor: pointer; }
+.iv-photo-n,
+.iv-photo-x,
+.iv-photo-swap { opacity: 0; transition: opacity 0.15s ease; }
+.iv-photo-n { position: absolute; left: 6px; top: 6px; z-index: 1; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 7px; background: rgba(17, 17, 17, 0.55); color: #fff; font: 600 10.5px/20px var(--font-mono), monospace; text-align: center; pointer-events: none; }
+.iv-photo-x {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 2px solid var(--enki-paper);
+  border-radius: 14px;
+  background: var(--cta-bg);
+  color: var(--cta-ink);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.iv-photo-swap { position: absolute; right: 7px; bottom: 7px; z-index: 2; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; background: rgba(17, 17, 17, 0.55); color: #fff; cursor: pointer; }
+.iv-photo[data-hot] .iv-photo-n,
+.iv-photo[data-hot] .iv-photo-x,
+.iv-photo[data-hot] .iv-photo-swap,
+.iv-photo:focus-within .iv-photo-n,
+.iv-photo:focus-within .iv-photo-x,
+.iv-photo:focus-within .iv-photo-swap { opacity: 1; }
+@media (hover: hover) {
+  /* The card under the mouse peeks up; over overlapping cards the one whose strip the mouse is on (PhotoDeck data-hot). */
+  .iv-deck-box:not([data-overlap]) .iv-photo:hover,
+  .iv-deck-box[data-overlap] .iv-photo[data-hot] { z-index: 80 !important; transform: translateY(-8px); filter: drop-shadow(0 10px 14px rgba(17, 17, 17, 0.22)); }
+  .iv-photo:hover .iv-photo-n,
+  .iv-photo:hover .iv-photo-x,
+  .iv-photo:hover .iv-photo-swap { opacity: 1; }
+}
+/* A finger sliding along the phone's deck (PhotoDeck): the card under it comes to the front, lifted and larger. */
+.iv-deck-box[data-scrub] .iv-photo[data-hot] { z-index: 80 !important; transform: translateY(-6px) scale(1.18); transform-origin: 50% 100%; filter: drop-shadow(0 10px 14px rgba(17, 17, 17, 0.22)); }
+.iv-photo-add {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 2px dashed var(--enki-rule);
+  background: transparent;
+  color: var(--enki-ink-3);
+  cursor: pointer;
+}
+.iv-photo-add { font: 300 24px/1 var(--font-sans), sans-serif; transition: left 0.3s ease, width 0.3s ease, height 0.3s ease; }
+.iv-photo-add:hover { border-color: var(--enki-ink-3); color: var(--enki-ink-2); }
+/* The photo symbol with a plus (PhotoDeck AddPhoto): a small filled badge at its top right, in the tile's own colour. */
+.iv-photo-addicon { position: relative; display: inline-flex; }
+.iv-photo-addplus { position: absolute; top: -22%; right: -28%; display: flex; padding: 1px; border-radius: 50%; background: currentColor; }
+.iv-photo-addplus > svg { color: var(--enki-paper); }
+
+/* ── Easy | Expert (handoff §5.5): a sticky head, the switch at its left (Kev, 2026-10-21), the rest at its right. */
+.iv-mode-head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 34px;
+  padding: 12px 0 6px;
+  background: var(--enki-paper);
+  container-type: inline-size;
+}
+/* "Your images" sits close over its photos (Kev, 2026-10-21: the gap was too big). */
+.iv-mode-head + .iv-deck { margin-top: -8px; }
+.iv-mode-label { font-size: 12px; font-weight: 600; color: var(--enki-ink-3); white-space: nowrap; }
+.iv-mode-left { display: inline-flex; align-items: center; gap: 12px; min-width: 0; }
+.iv-legend { display: inline-flex; align-items: center; gap: 6px; color: var(--enki-green); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.iv-legend::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+/* One line in a narrow composer: the legend goes first, then "at cursor". Measured in Geist: switch 176 (phone 150)
+   + 10 + "+ Ref image at cursor" 176.9 (172.4) + 12 + legend 91.4. */
+@container (max-width: 468.98px) { .iv-legend { display: none; } }
+@container (max-width: 364.98px) { .iv-v2 .iv-refimg-at { display: none; } }
+@container (max-width: 334.98px) { .iv-mobile .iv-refimg-at { display: none; } }
+/* A 320 px phone: "Your images · 14 images" and the switch need 296. */
+@container (max-width: 295.98px) { .iv-mode-count { display: none; } }
+/* Below 270 (a folded phone) Ref image keeps its "+"; its title still names it. */
+@container (max-width: 269.98px) { .iv-refimg-word { display: none; } }
+.iv-refimg {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 13px 0 9px;
+  border: 0;
+  border-radius: 11px;
+  background: var(--enki-fill);
+  color: var(--enki-ink);
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.iv-refimg:hover { background: var(--enki-fill-hover); }
+.iv-refimg-plus { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border: 1px dashed #8db3c9; border-radius: 6px; background: color-mix(in srgb, #8db3c9 22%, var(--enki-paper)); color: var(--enki-ref-ink); font-size: 13px; }
+.iv-mode { position: relative; display: grid; grid-template-columns: 1fr 1fr; width: 176px; flex-shrink: 0; padding: 3px; border-radius: 999px; background: var(--enki-paper-3); }
+.iv-mode-slide {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc(50% - 3px);
+  border-radius: 999px;
+  background: var(--enki-paper);
+  box-shadow: 0 1px 3px rgba(17, 17, 17, 0.16);
+  transition: transform 0.28s cubic-bezier(0.3, 0.7, 0.3, 1);
+}
+.iv-mode-slide[data-expert] { transform: translateX(100%); }
+.iv-mode-btn { position: relative; height: 32px; padding: 0; border: 0; background: transparent; color: var(--enki-ink-3); font-size: 13.5px; font-weight: 600; cursor: pointer; transition: color 0.2s ease; }
+.iv-mode-btn[aria-checked="true"] { color: var(--enki-ink); }
+
+/* ── Easy's variables (handoff §5.7): a label, the value on a dashed line, ember the creator's, green the buyer's own. */
+/* Back from Full prompt they slide in from the left, as its text comes in from the right (.iv-doc; Kev, 2026-10-27). */
+.iv-easy[data-in] { animation: iv-in-l 0.3s cubic-bezier(0.3, 0.7, 0.3, 1); }
+@media (prefers-reduced-motion: reduce) { .iv-easy[data-in] { animation: none; } }
+.iv-easy .iv-fields { gap: 0; }
+.iv-easy .kit-field { --iv-tone: var(--enki-ember); gap: 4px; padding: 11px 0 13px; }
+.iv-easy .kit-field[data-changed] { --iv-tone: var(--enki-green); }
+.iv-easy .kit-field-head { justify-content: flex-start; align-items: baseline; gap: 10px; }
+.iv-easy .kit-field-name { font: 600 12px/1.3 var(--font-sans), sans-serif; color: var(--enki-ink-3); }
+.iv-easy .kit-field-name::before,
+.iv-easy .kit-field-copy { display: none; }
+.iv-easy .kit-field-text {
+  padding: 2px 0 6px;
+  border: 0;
+  border-bottom: 2px dashed color-mix(in oklab, var(--iv-tone) 55%, transparent);
+  border-radius: 0;
+  background: transparent;
+  color: var(--iv-tone);
+  font: 500 19px/1.45 var(--font-sans), sans-serif;
+  resize: none;
+}
+.iv-easy .kit-field-text:focus { border-bottom-style: solid; border-color: var(--iv-tone); }
+
+/* ── A prompt without variables (text-only handoff §2.3-2.4): its text in place of the fields, a size larger
+   than Expert's. */
+.iv-plain { position: relative; display: flex; flex-direction: column; gap: 10px; padding: 18px 0 10px; animation: iv-in-l 0.3s cubic-bezier(0.3, 0.7, 0.3, 1); }
+.iv-plain-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.iv-plain-head .iv-link { color: var(--enki-ink-3); font-size: 12.5px; white-space: nowrap; }
+/* The words, always the editor: the type set from the wrapper (--iv-fs, fitted on desktop; .iv-pm sets its own
+   --kit-fs, so the size passes under another name), its padding taken back by the negative margin so the text
+   lines up with the label; the frame shows only while it has the focus. */
+.iv-plain-words { max-width: calc(62ch + 18px); margin: -7px -9px; font-size: var(--iv-fs); }
+.iv-plain-words .iv-pm { --kit-fs: var(--iv-fs); --kit-lh: 1.7; --kit-pad: 6px 8px; --kit-radius: 10px; }
+.iv-plain-words .kit-pm-text { border-color: transparent; background: transparent; }
+.iv-plain-words .kit-pm-text:focus { border-color: var(--enki-rule); }
+.iv-plain-words .kit-pm-mirror { color: var(--enki-ink-2); }
+/* The same words at a trial size (PlainPrompt's fit): out of sight, the field's metrics and its measure, which
+   widens with the size. */
+.iv-plain-probe {
+  position: absolute;
+  top: 0;
+  box-sizing: border-box;
+  left: -9px;
+  width: calc(100% + 18px);
+  max-width: calc(62ch + 18px);
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  font: 400 19px/1.7 var(--font-sans), sans-serif;
+  letter-spacing: normal;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  visibility: hidden;
+  pointer-events: none;
+}
+@keyframes iv-in-l { from { transform: translateX(-26px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .iv-plain { animation: none; }
+}
+
+/* ── Where a reference comes from (Kev, 2026-10-21): a popover at the button that asked, three tabs. */
+.iv-rp {
+  position: fixed;
+  z-index: 9300;
+  width: min(360px, calc(100vw - 40px));
+  overflow-y: auto;
+  padding: 12px;
+  border: 1px solid var(--enki-rule);
+  border-radius: 16px;
+  background: var(--enki-paper);
+  box-shadow: var(--enki-shadow-pop);
+}
+.iv-rp-body { display: flex; flex-direction: column; gap: 12px; }
+/* The NFTs' count and "Use N" stay at the foot of a long wallet, as in the modal; the popover's 12 px padding
+   taken back so nothing shows under it. */
+.iv-rp-body .enki-nftp-foot { position: sticky; bottom: 0; background: var(--enki-paper); }
+.iv-rp .enki-nftp-foot { bottom: -12px; }
+.iv-rp-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.iv-rp-upload,
+.iv-rp-item { aspect-ratio: 1 / 1; overflow: hidden; padding: 0; border-radius: 12px; cursor: pointer; }
+.iv-rp-upload {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 2px dashed var(--enki-rule);
+  background: transparent;
+  color: var(--enki-ink-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+.iv-rp-upload span { font: 300 22px/1 var(--font-sans), sans-serif; }
+.iv-rp-upload:hover:not(:disabled) { border-color: var(--enki-ink-3); }
+.iv-rp-item { border: 0; background: var(--enki-paper-3); }
+.iv-rp-item:hover:not(:disabled) { box-shadow: 0 0 0 2px var(--enki-ink); }
+/* In the prompt: the ring the deck's own photos wear (.iv-photo[data-own]), hovered too (DEC-506). */
+.iv-rp-item[data-on],
+.iv-rp-item[data-on]:hover:not(:disabled) { box-shadow: 0 0 0 2px var(--enki-photo-ring); }
+.iv-rp-item :is(img, video) { display: block; width: 100%; height: 100%; object-fit: cover; }
+.iv-rp-upload:disabled,
+.iv-rp-item:disabled { opacity: 0.45; cursor: not-allowed; }
+/* A saved reference's × (DEC-525), as the deck's (.iv-photo-x) but smaller: on hover where the pointer can hover,
+   always on a touch screen. */
+.iv-rp-tile { position: relative; }
+.iv-rp-tile .iv-rp-item { width: 100%; }
+.iv-rp-del {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 2px solid var(--enki-paper);
+  border-radius: 12px;
+  background: var(--cta-bg);
+  color: var(--cta-ink);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .iv-rp-del { opacity: 0; transition: opacity 0.15s ease; }
+  .iv-rp-tile:hover .iv-rp-del,
+  .iv-rp-tile:focus-within .iv-rp-del { opacity: 1; }
+}
+.iv-rp-note { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--enki-ink-3); text-wrap: pretty; }
+
+/* ── "↓ N more settings" (handoff §5.9): pinned to the scroller's foot, it takes no room. */
+.iv-more { position: sticky; bottom: 8px; z-index: 4; display: flex; justify-content: center; height: 34px; margin-top: -34px; pointer-events: none; }
+.iv-more[hidden] { display: none; }
+.iv-more-pill {
+  height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 11px;
+  background: var(--cta-bg);
+  color: var(--cta-ink);
+  font-size: 12.5px;
+  font-weight: 600;
+  box-shadow: 0 8px 20px rgba(17, 17, 17, 0.22);
+  pointer-events: auto;
+  cursor: pointer;
+  animation: iv-bob 1.6s ease-in-out infinite;
+}
+@keyframes iv-bob { 50% { transform: translateY(-3px); } }
+@media (prefers-reduced-motion: reduce) {
+  .iv-more-pill { animation: none; }
+}
+
+/* ── The viewer's renders beside the hero (handoff §5.10): 64 px open, 26 px folded. */
+/* A render of this view (Kev, 2026-10-26): orange while it waits or paints, its spinner inside orange too once sent;
+   green once finished, until it has been seen (then the kit's ✓). The one on the stage keeps its ember frame. */
+.iv-root .kit-tile[data-status="rendering"]:not([data-frame="ember"]) { border-color: var(--enki-amber); box-shadow: 0 0 0 3px color-mix(in oklab, var(--enki-amber) 25%, transparent); }
+.iv-root .kit-tile[data-sent] .kit-spinner { border-color: color-mix(in oklab, var(--enki-amber) 30%, transparent); border-top-color: var(--enki-amber); box-shadow: 0 0 10px color-mix(in oklab, var(--enki-amber) 60%, transparent); }
+.iv-root .kit-tile[data-frame="turq"] { border-color: var(--enki-green); box-shadow: 0 0 0 3px color-mix(in oklab, var(--enki-green) 25%, transparent); }
+.iv-hstrip { position: relative; display: flex; flex-shrink: 0; flex-direction: column; align-items: center; width: 64px; min-height: 0; overflow: hidden; transition: width 0.3s cubic-bezier(0.3, 0.7, 0.3, 1); }
+/* Folded, a visible rail (Kev, 2026-10-26: "history is barely visible"), not text on the paper. */
+.iv-hstrip[data-open="false"] { width: 26px; border-radius: 13px; background: var(--enki-fill); }
+.iv-hstrip-list {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 0 0 60px;
+  overflow-y: auto;
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 70px), transparent 100%);
+}
+.iv-hstrip-pick { flex: 0 0 60px; width: 60px; height: 60px; padding: 0; border: 2px solid transparent; border-radius: 15px; overflow: hidden; background: var(--enki-paper-3); cursor: pointer; }
+.iv-hstrip-pick[aria-pressed="true"] { border-color: var(--enki-ink); }
+.iv-hstrip-pick img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.iv-hstrip-note { font-size: 11px; color: var(--enki-ink-3); }
+/* Out of the flow, as the list: a vertical label sized by the viewport (an orthogonal flow with no set height) made
+   the row, and the hero with it, as tall as the window. */
+.iv-hstrip-fold { position: absolute; inset: 0; padding: 0; border: 0; background: none; color: var(--enki-ink-2); font-size: 12px; font-weight: 600; writing-mode: vertical-rl; transform: rotate(180deg); cursor: pointer; }
+/* It fills the strip, which clips (overflow hidden): the keyboard's ring goes inside its edge. */
+.iv-hstrip-fold:focus-visible { outline-offset: -2px; }
+/* The Premium badge at the hero's top right (handoff README: "Preis-Badge oben rechts im Hero"), not mid-row; the History spacer after it
+   takes the hero row's 14 px gap (10 + 4), so the badge ends where the hero does. */
+.iv-metarow > .iv-premium { margin-left: auto; }
+.iv-meta-hist { display: flex; flex-shrink: 0; justify-content: center; width: 64px; margin-left: 4px; }
+.iv-meta-hist[data-open="false"] { width: 26px; }
+.iv-meta-hist-btn { padding: 0; border: 0; background: none; color: var(--enki-ink-2); font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+/* No render yet (DEC-504): a plain name above the open column, a dashed square where the first render will land. */
+.iv-meta-hist-label { color: var(--enki-ink-2); font-size: 12px; font-weight: 600; white-space: nowrap; cursor: default; }
+.iv-hstrip-ghost { flex: 0 0 60px; width: 60px; height: 60px; border: 1.5px dashed var(--enki-rule); border-radius: 15px; }
+/* ink-2, as the History labels: ink-3 at 11-12 px reads under 4.5:1 on the purple and dark themes (DEC-505). */
+.iv-hstrip-hint { color: var(--enki-ink-2); text-align: center; line-height: 1.35; }
+.iv-yours { display: inline-flex; align-items: center; height: 26px; padding: 0 10px; border-radius: 7px; background: var(--enki-green); color: var(--enki-paper); font-size: 12px; font-weight: 600; white-space: nowrap; }
+
+/* ── Examples (handoff §5.10): 60 px squares that end before the strip, a fade at the right; the phone's row under its
+   hero too (Kev, 2026-10-26). */
+.iv-examples { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.iv-examples[data-history="open"] { margin-right: 78px; }
+.iv-examples[data-history="folded"] { margin-right: 40px; }
+.iv-examples-label { display: flex; align-items: center; min-height: 34px; font-size: 12px; font-weight: 600; color: var(--enki-ink-3); }
+:is(.iv-v2, .iv-mobile) .iv-strip-arrow { display: none; }
+:is(.iv-v2, .iv-mobile) .iv-strip-row { padding: 2px; mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent 100%); }
+:is(.iv-v2, .iv-mobile) .iv-strip-track { gap: 10px; }
+:is(.iv-v2, .iv-mobile) .iv-thumb { width: 60px; height: 60px; border-radius: 15px; }
+/* The picture fills its square: at its own width a portrait left a grey band at the right (review 2026-10-26). */
+:is(.iv-v2, .iv-mobile) .iv-thumb img { width: 100%; }
+
+/* ── The hero's arrows and swipe (handoff §5.10): the arrived picture slides in from its side. */
+.iv-heronav { position: absolute; inset: 0; touch-action: pan-y; }
+.iv-hero-slide { position: absolute; inset: 0; }
+.iv-hero-slide[data-dir="r"] { animation: iv-slide-r 0.34s cubic-bezier(0.3, 0.7, 0.3, 1); }
+.iv-hero-slide[data-dir="l"] { animation: iv-slide-l 0.34s cubic-bezier(0.3, 0.7, 0.3, 1); }
+@keyframes iv-slide-r { from { transform: translateX(14%); opacity: 0.4; } }
+@keyframes iv-slide-l { from { transform: translateX(-14%); opacity: 0.4; } }
+.iv-hero-arrow {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(17, 17, 17, 0.45);
+  color: #fff;
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+.iv-hero-arrow[data-side="left"] { left: 14px; }
+.iv-hero-arrow[data-side="right"] { right: 14px; }
+.iv-hero-arrow:disabled { opacity: 0.3; cursor: default; }
+@media (prefers-reduced-motion: reduce) {
+  .iv-hero-slide[data-dir] { animation: none; }
+}
+
+/* ── The photo zoom (handoff §5.15): grown from its tile to its own size and shape (Zoom), over everything but the viewer. */
+.iv-zoom { position: fixed; inset: 0; z-index: 9500; }
+/* Above the fullscreen viewer (.kit-viewer 9999) and the kit's popovers (10000), under its notices (10020). */
+.iv-zoom[data-over-viewer] { z-index: 10010; }
+.iv-zoom-backdrop { position: absolute; inset: 0; background: rgba(17, 17, 17, 0.62); opacity: 0; transition: opacity 0.3s ease; }
+.iv-zoom[data-phase="open"] .iv-zoom-backdrop { opacity: 1; }
+.iv-zoom-img {
+  position: absolute;
+  padding: 0;
+  border: 0;
+  border-radius: 28px;
+  background: var(--enki-paper-3) center / cover no-repeat;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4);
+  transform-origin: 0 0;
+  /* Open, the square grows on into the photo's own size when that arrives late (Zoom). */
+  transition: transform 0.34s cubic-bezier(0.3, 0.7, 0.3, 1), left 0.34s ease, top 0.34s ease, width 0.34s ease, height 0.34s ease;
+  cursor: zoom-out;
+}
+/* On its tile nothing moves: a size that arrives there is taken at once, so the grow starts from the tile and not from
+   where the square's transform puts the new box (review 2026-10-29). */
+.iv-zoom[data-phase="in"] .iv-zoom-img { transition: none; }
+.iv-zoom-n { position: absolute; top: 14px; left: 14px; min-width: 28px; height: 28px; padding: 0 8px; border-radius: 7px; background: rgba(17, 17, 17, 0.55); color: #fff; font: 600 13px/28px var(--font-mono), monospace; }
+.iv-zoom-x {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  color: #111;
+  animation: kit-fade 0.2s ease;
+  cursor: pointer;
+}
+@media (prefers-reduced-motion: reduce) {
+  .iv-zoom-img,
+  .iv-zoom-backdrop { transition: none; }
+}
+
+/* ── Reviews and comments (handoff §5.16): a panel morphing out of the rating, over the hero (desktop) or the frame. */
+.iv-meta-by button.iv-rating,
+.iv-meta-by button.iv-meta-none { padding: 0; border: 0; background: none; font: inherit; cursor: pointer; text-decoration: underline; text-decoration-color: var(--enki-rule); text-underline-offset: 3px; }
+.iv-meta-by button.iv-rating { color: var(--enki-ink-2); }
+.iv-review-plus { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin-left: 3px; padding: 0; border: 0; border-radius: 7px; background: var(--enki-accent-soft); color: var(--enki-ember); cursor: pointer; }
+.iv-review-plus:hover { background: var(--enki-accent-soft-hover); }
+.iv-review-plus:active { transform: scale(0.9); }
+.iv-rv { position: fixed; inset: 0; z-index: 9400; }
+.iv-rv-backdrop { position: absolute; inset: 0; background: rgba(17, 17, 17, 0.18); animation: kit-fade 0.2s ease; }
+.iv-rv-panel {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 28px;
+  background: var(--enki-paper);
+  color: var(--enki-ink);
+  box-shadow: 0 24px 60px rgba(17, 17, 17, 0.25);
+  animation: iv-morph-in 0.32s cubic-bezier(0.3, 0.7, 0.3, 1);
+}
+.iv-rv-panel[data-phone] { border-radius: 22px; }
+.iv-rv[data-leaving] .iv-rv-backdrop { animation: iv-fade-out 0.24s ease forwards; }
+.iv-rv[data-leaving] .iv-rv-panel { animation: iv-morph-out 0.24s ease forwards; }
+@keyframes iv-morph-in { from { transform: scale(0.08); opacity: 0; } }
+@keyframes iv-morph-out { to { transform: scale(0.08); opacity: 0; } }
+@keyframes iv-fade-out { to { opacity: 0; } }
+.iv-rv-head { display: flex; flex-shrink: 0; align-items: center; gap: 8px; height: 46px; padding: 0 8px 0 16px; border-bottom: 1px solid var(--enki-rule-2); }
+.iv-rv-star { color: var(--enki-ember); }
+.iv-rv-avg { font-size: 14px; font-weight: 600; }
+.iv-rv-counts { min-width: 0; overflow: hidden; color: var(--enki-ink-3); font-size: 12.5px; white-space: nowrap; text-overflow: ellipsis; }
+.iv-rv-space { flex: 1; }
+.iv-rv-write { display: inline-flex; flex-shrink: 0; align-items: center; gap: 5px; height: 30px; padding: 0 10px 0 8px; border: 0; border-radius: 9px; background: var(--enki-accent-soft); color: var(--enki-ember); font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.iv-rv-close { display: flex; flex-shrink: 0; align-items: center; justify-content: center; width: 34px; height: 34px; padding: 0; border-radius: 50%; border: 1px solid var(--enki-rule); background: var(--enki-paper-2); color: var(--enki-ink-2); cursor: pointer; }
+.iv-rv-close:hover { color: var(--enki-ink); border-color: var(--enki-ink-3); }
+.iv-rv-body { flex: 1; display: flex; flex-direction: column; gap: 14px; min-height: 0; padding: 14px 16px 22px; overflow-y: auto; scrollbar-width: thin; }
+.iv-rv-card { display: flex; flex-direction: column; gap: 12px; padding: 14px; border-radius: 16px; background: var(--enki-paper-2); box-shadow: inset 0 0 0 1px var(--enki-rule-2); }
+.iv-rv-card-title { font-size: 13.5px; font-weight: 600; }
+.iv-rv-stars { display: flex; gap: 2px; }
+.iv-rv-stars .iv-star { width: 28px; height: 28px; padding: 0; border: 0; background: none; color: var(--enki-ink-3); font-size: 19px; cursor: pointer; }
+.iv-rv-stars .iv-star[data-on] { color: var(--enki-ember); }
+.iv-rv-text { width: 100%; padding: 10px 12px; border: 1px solid var(--enki-rule); border-radius: 12px; background: var(--enki-paper); color: var(--enki-ink); font: 400 14px/1.5 var(--font-sans), sans-serif; resize: vertical; outline: none; }
+.iv-rv-text:focus { border-color: var(--enki-ember); box-shadow: 0 0 0 3px color-mix(in oklab, var(--enki-ember) 14%, transparent); }
+.iv-rv-acts { display: flex; justify-content: flex-end; gap: 8px; }
+.iv-rv-acts--split { justify-content: space-between; }
+.iv-rv-btn { height: 34px; padding: 0 12px; border: 0; border-radius: 10px; background: var(--enki-fill); color: var(--enki-ink); font-size: 13.5px; font-weight: 500; cursor: pointer; }
+.iv-rv-btn[data-primary] { padding: 0 14px; background: var(--cta-bg); color: var(--cta-ink); font-weight: 600; }
+.iv-rv-btn:disabled { background: var(--enki-paper-3); color: var(--enki-ink-2); cursor: not-allowed; }
+.iv-rv-hint { font-size: 12.5px; line-height: 1.45; color: var(--enki-ink-3); }
+.iv-rv-picks { display: grid; grid-template-columns: repeat(auto-fill, minmax(58px, 1fr)); gap: 8px; }
+.iv-rv-pick { aspect-ratio: 1; padding: 0; border: 0; border-radius: 10px; overflow: hidden; background: var(--enki-paper); box-shadow: 0 0 0 1px var(--enki-rule-2); cursor: pointer; }
+.iv-rv-pick[aria-checked="true"] { box-shadow: 0 0 0 2px var(--enki-paper), 0 0 0 4px var(--enki-ember); }
+.iv-rv-pick img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.iv-rv-none { border: 1.5px dashed var(--enki-rule); box-shadow: none; color: var(--enki-ink-3); font-size: 11.5px; font-weight: 500; }
+.iv-rv-note { margin: 0; font-size: 12.5px; color: var(--enki-ink-3); }
+.iv-rv-entry { display: flex; gap: 10px; cursor: pointer; }
+.iv-rv-main { display: flex; flex: 1; flex-direction: column; gap: 3px; min-width: 0; }
+.iv-rv-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.iv-rv-who { padding: 0; border: 0; background: none; color: var(--enki-ink); font: 600 13px/1.3 var(--font-sans), sans-serif; }
+button.iv-rv-who { cursor: pointer; }
+.iv-rv-rated { color: var(--enki-ember); font-size: 11px; letter-spacing: 1px; }
+.iv-rv-when { font-size: 11.5px; color: var(--enki-ink-3); }
+.iv-rv-say { display: -webkit-box; margin: 0; overflow: hidden; font-size: 13.5px; line-height: 1.45; color: var(--enki-ink-2); -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.iv-rv-entry[data-open] .iv-rv-say { display: block; }
+.iv-rv-img { width: 64px; height: 64px; margin-top: 4px; border-radius: 12px; object-fit: cover; }
+.iv-rv-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 32px 14px; text-align: center; }
+.iv-rv-empty-title { font: italic 400 21px/1.1 var(--font-serif), Georgia, serif; letter-spacing: -0.02em; }
+.iv-rv-empty .iv-rv-hint { max-width: 280px; font-size: 13.5px; line-height: 1.5; }
+.iv-rv-empty .iv-rv-btn { margin-top: 6px; }
+@media (prefers-reduced-motion: reduce) {
+  .iv-rv-panel,
+  .iv-rv[data-leaving] .iv-rv-panel { animation: none; }
+}

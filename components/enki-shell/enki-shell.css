@@ -1,0 +1,930 @@
+/* ════════════════════════════════════════════════════════════════
+   Enki left-side-menu shell — ported from the Enki V3 design bundle
+   (Enki Left-Menu.html + enki/views.css/settings.css). Scoped to .ek-app
+   so the design tokens here never leak into the rest of the app, and the
+   ek-/nc- classes resolve against the same Enki tokens the design used.
+   ════════════════════════════════════════════════════════════════ */
+
+.ek-app {
+  --enki-paper: #ffffff; --enki-paper-2: #f6f5f4; --enki-paper-3: #ecebe9;
+  --enki-ink: #111111; --enki-ink-2: #3d3c3a; --enki-ink-3: #6b6a67;
+  --enki-rule: #e3e2df; --enki-rule-2: #efeeec; --enki-ember: #7d1d33;
+  --ember-rgb: 125, 29, 51;
+  --enki-turq: #0d9488; --turq-rgb: 13, 148, 136;
+  /* One red per theme, because a single literal cannot clear 4.5:1 on both
+     cream and near-black. Both values were already in this file (recovery
+     banner / refer error) — this only lets them switch with the theme. */
+  --enki-danger: #b3271e;
+  /* The image UI's set, equal to globals.css (the shadows by hand). */
+  --enki-amber: #e0a35c; --enki-price-bg: #e0a35c; --enki-price-ink: #111111;
+  --enki-stage: #111111; --enki-on-stage: #ffffff;
+  --enki-ref-a: #cfe3f2; --enki-ref-b: #cdeee3; --enki-ref-ink: #1e4b5a;
+  --enki-vary-1: #c96838; --enki-vary-2: #0d9488; --enki-vary-3: #a8822a;
+  --enki-vary-4: #3d3a36; --enki-vary-5: #8b5cf6; --enki-vary-6: #5b7a91;
+  --enki-shadow-pop: 0 24px 60px rgba(17, 17, 17, 0.25);
+  --enki-shadow-card: 0 12px 32px rgba(17, 17, 17, 0.1), 0 2px 6px rgba(17, 17, 17, 0.05);
+  --enki-shadow-bar: 0 -16px 20px -12px rgba(17, 17, 17, 0.08);
+  --header-bg: rgba(255, 255, 255, 0.92);
+  --qc-bg: #7d1d33; --qc-ink: #ffffff;
+  --cta-bg: #7d1d33; --cta-ink: #ffffff;
+  /* sidebar width, flipped by .ek-root--rail and .ek-root--closed */
+  --ek-sw: 256px;
+  min-height: 100vh;
+  background: var(--enki-paper);
+  color: var(--enki-ink);
+  font-family: var(--font-sans), 'Inter', system-ui, sans-serif;
+  transition: background-color 0.4s ease, color 0.4s ease;
+}
+.dark .ek-app {
+  --enki-paper: #0a1825; --enki-paper-2: #102433; --enki-paper-3: #16303f;
+  --enki-ink: #e4edf1; --enki-ink-2: #97aebb; --enki-ink-3: #6a8493;
+  --enki-rule: #1e3849; --enki-rule-2: #2a4658; --enki-ember: #cba24a;
+  --ember-rgb: 203, 162, 74;
+  --enki-turq: #2dd4bf; --turq-rgb: 45, 212, 191;
+  --enki-danger: #e0584f;
+  --enki-amber: #e0a35c; --enki-price-bg: #0a1825; --enki-price-ink: #e0a35c;
+  --enki-stage: #050c13; --enki-on-stage: #faf8f4;
+  --enki-ref-a: #cfe3f2; --enki-ref-b: #cdeee3; --enki-ref-ink: #1e4b5a;
+  --enki-vary-1: #cba24a; --enki-vary-2: #2dd4bf; --enki-vary-3: #e07a4f;
+  --enki-vary-4: #97aebb; --enki-vary-5: #c084fc; --enki-vary-6: #7fb3d5;
+  --enki-shadow-pop: 0 18px 50px rgba(0, 0, 0, 0.45);
+  --enki-shadow-card: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --enki-shadow-bar: 0 -16px 20px -12px rgba(0, 0, 0, 0.35);
+  --header-bg: rgba(10, 24, 37, 0.92);
+  --qc-bg: #f0a868; --qc-ink: #3a2410;
+  --cta-bg: linear-gradient(135deg, #cba24a 0%, #b8862f 100%); --cta-ink: #0a1825;
+}
+.dark.theme-purple .ek-app {
+  --enki-paper: #140e1f; --enki-paper-2: #1c1330; --enki-paper-3: #241a37;
+  --enki-ink: #ece8f5; --enki-ink-2: #a99fc0; --enki-ink-3: #7d7295;
+  --enki-rule: #2e2442; --enki-rule-2: #3d3154; --enki-ember: #a855f7;
+  --ember-rgb: 168, 85, 247;
+  --enki-turq: #2dd4bf; --turq-rgb: 45, 212, 191;
+  --enki-danger: #e0584f;
+  --enki-amber: #e0a35c; --enki-price-bg: #140e1f; --enki-price-ink: #e0a35c;
+  --enki-stage: #0b0713; --enki-on-stage: #faf8f4;
+  --enki-ref-a: #cfe3f2; --enki-ref-b: #cdeee3; --enki-ref-ink: #1e4b5a;
+  --enki-vary-1: #a855f7; --enki-vary-2: #2dd4bf; --enki-vary-3: #e0a35c;
+  --enki-vary-4: #a99fc0; --enki-vary-5: #f472b6; --enki-vary-6: #7fb3d5;
+  --enki-shadow-pop: 0 18px 50px rgba(0, 0, 0, 0.45);
+  --enki-shadow-card: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --enki-shadow-bar: 0 -16px 20px -12px rgba(0, 0, 0, 0.35);
+  --header-bg: rgba(20, 14, 32, 0.92);
+  --qc-bg: #8b5cf6; --qc-ink: #ffffff;
+  --cta-bg: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); --cta-ink: #ffffff;
+}
+.ek-app.ek-root--rail { --ek-sw: 72px; }
+.ek-app.ek-root--closed { --ek-sw: 10px; }
+
+.ek-app .serif { font-family: var(--font-serif), Georgia, serif; }
+.ek-app .mono { font-family: var(--font-mono), ui-monospace, monospace; }
+
+/* ════════════════ Layout ════════════════ */
+.ek-shell { display: flex; min-height: 100vh; }
+.ek-sidebar {
+  /* Above the right-side panel scrim (z 160): no panel may ever cover the
+     sidebar — especially not the collapse chevron poking out of its edge. */
+  position: fixed; top: 0; left: 0; bottom: 0; z-index: 165;
+  width: 256px;
+  display: flex; flex-direction: column;
+  padding: 18px 14px 22px;
+  background: var(--enki-paper);
+  border-right: 1px solid var(--enki-rule);
+  transition: width 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.ek-root--rail .ek-sidebar { width: 72px; align-items: center; padding: 20px 0 18px; }
+.ek-main { flex: 1; min-width: 0; margin-left: var(--ek-sw); transition: margin-left 0.26s cubic-bezier(0.4, 0, 0.2, 1); position: relative; }
+/* Hidden menu: a 10 px strip, all of it a click target, with a "Show menu" tab (README §5.1). */
+.ek-sidebar--closed { width: 10px; padding: 0; cursor: pointer; }
+.ek-sidebar--closed:hover { background: var(--enki-paper-2); }
+.ek-show-menu {
+  position: absolute; left: 9px; top: 19px; z-index: 3; width: 22px; height: 34px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--enki-rule); border-left: 0; border-radius: 0 10px 10px 0;
+  background: var(--enki-paper); color: var(--enki-ink-2); font-size: 15px; cursor: pointer;
+}
+.ek-show-menu:hover { color: var(--enki-ink); }
+
+/* ── Sidebar logo ── */
+.ek-logo {
+  display: flex; align-items: center; gap: 7px; height: 48px; padding: 0 6px 0 10px; margin-bottom: 6px;
+  cursor: pointer; flex-shrink: 0; text-decoration: none;
+}
+.ek-root--rail .ek-logo { justify-content: center; padding: 0; height: auto; margin: 6px 0 14px; }
+.ek-logo-img { height: 30px; width: auto; display: block; object-fit: contain; }
+/* Kev's wordmark, see-through: as drawn on the light theme; the dark ones turn its black white with the filter
+   app/layout.tsx defines, his bordeaux exact (DEC-490). */
+.dark img[src="/enki-wordmark.svg"] { filter: url(#enki-wordmark-on-dark); }
+.ek-logo-mark {
+  width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent;
+}
+.ek-logo-mark-img { width: 32px; height: 32px; border-radius: 8px; object-fit: contain; display: block; }
+.ek-logo-word { font-family: var(--font-serif), Georgia, serif; font-style: italic; font-size: 27px; letter-spacing: -0.01em; color: var(--enki-ink); white-space: nowrap; }
+.ek-logo-dot { color: var(--enki-ember); font-size: 22px; }
+
+/* ── Menu toggles: labels ↔ icons, then hide ── */
+.ek-toggles {
+  /* The first is vertically centered in the 44px category bar (All, Portrait, ...),
+     not floating below it (Kev, 2026-08-23): (44 - 26) / 2 = 9. */
+  position: absolute; top: 9px; right: -13px; z-index: 130;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.ek-collapse-btn {
+  position: relative;
+  width: 26px; height: 26px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--enki-fill); border: 1px solid transparent; color: var(--enki-ink-2);
+  box-shadow: 0 2px 6px rgba(17, 17, 17, 0.08); transition: all 0.16s ease; opacity: 0.9; cursor: pointer;
+}
+.ek-sidebar:hover .ek-collapse-btn { opacity: 1; }
+.ek-collapse-btn:hover { background: var(--enki-fill-hover); color: var(--enki-ink); }
+@media (pointer: coarse) {
+  .ek-toggles { top: 4px; right: -18px; }
+  .ek-collapse-btn { width: 36px; height: 36px; }
+  .ek-collapse-btn::before { content: ""; position: absolute; inset: -4px; }
+}
+
+/* ── Nav items ── */
+.ek-nav { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+.ek-nav-item {
+  position: relative; display: flex; align-items: center; gap: 14px;
+  height: 44px; padding: 0 12px; border: none; border-radius: 999px; background: none;
+  color: var(--enki-ink); font-size: 16px; font-weight: 400; width: 100%; text-align: left;
+  transition: background 0.16s ease, color 0.16s ease; white-space: nowrap;
+}
+.ek-root--rail .ek-nav-item { width: 46px; height: 46px; padding: 0; justify-content: center; gap: 0; border-radius: 50%; margin: 0 auto; }
+.ek-nav-item:hover { background: color-mix(in oklab, var(--enki-ink) 7%, transparent); }
+.ek-nav-item.active { font-weight: 600; }
+.ek-nav-item.active .ek-nav-ico { color: var(--enki-ember); }
+.ek-nav-ico { display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--enki-ink); }
+.ek-nav-label { flex: 1; }
+.ek-root--rail .ek-nav-label { display: none; }
+.ek-nav-badge {
+  min-width: 20px; height: 20px; padding: 0 6px; border-radius: 7px;
+  background: var(--cta-solid); color: var(--cta-ink); font-size: 11px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center; font-family: var(--font-mono), monospace;
+}
+.ek-root--rail .ek-nav-badge { position: absolute; top: 6px; right: 5px; min-width: 16px; height: 16px; font-size: 9.5px; padding: 0 4px; }
+
+/* tooltip when railed */
+.ek-nav-tip {
+  position: absolute; left: 64px; top: 50%; transform: translateY(-50%) scale(0.92);
+  background: var(--enki-ink); color: var(--enki-paper);
+  padding: 6px 11px; border-radius: 7px; font-size: 13px; font-weight: 500; white-space: nowrap;
+  opacity: 0; pointer-events: none; transition: opacity 0.14s ease, transform 0.14s ease; z-index: 200;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+}
+.ek-nav-tip::before { content: ''; position: absolute; left: -4px; top: 50%; transform: translateY(-50%) rotate(45deg); width: 8px; height: 8px; background: var(--enki-ink); }
+.ek-root--rail :is(.ek-nav-item, .ek-earn-row, .ek-create):is(:hover, :focus-visible) .ek-nav-tip { opacity: 1; transform: translateY(-50%) scale(1); }
+
+/* ── Studio's projects under its item (Kev, 2026-10-30: "wenn ich studio clicke, so klappt sich links darunter
+   dynamisch ein untermenü meiner projekte auf FALLS ich welche hab. direkt im menü rechts von studio soll daher auch ein
+   auf/zuklapppfeil sein"): the chevron is its own button at the row's right, never inside the item; the rows are 32 px,
+   indented to the label, and fold open by their height. The column only: the rail keeps Studio a plain icon. ── */
+.ek-nav-group { display: flex; flex-direction: column; }
+/* With the submenu the column's rows keep their height: what does not fit shows as overflow, which EnkiSidebar counts
+   and gives back by dropping submenu rows, instead of Refer a prompt and Feedback quietly shrinking. */
+.ek-sidebar:has(.ek-sub) > :not(.ek-side-spacer) { flex-shrink: 0; }
+.ek-nav-row { position: relative; }
+.ek-nav-row .ek-nav-item { padding-right: 44px; }
+.ek-sub-toggle {
+  position: absolute; top: 50%; right: 8px; transform: translateY(-50%);
+  display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0;
+  border: 0; border-radius: 50%; background: none; color: var(--enki-ink-3); cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease;
+}
+.ek-sub-toggle:hover { background: color-mix(in oklab, var(--enki-ink) 8%, transparent); color: var(--enki-ink); }
+.ek-sub-toggle svg { transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1); }
+.ek-sub-toggle[aria-expanded="true"] svg { transform: rotate(90deg); }
+.ek-sub { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.22s cubic-bezier(0.4, 0, 0.2, 1); }
+.ek-sub[data-open] { grid-template-rows: 1fr; }
+.ek-sub-in { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.ek-sub-row {
+  display: flex; align-items: center; gap: 9px; flex-shrink: 0; width: 100%; height: 32px; padding: 0 12px 0 46px;
+  border: 0; border-radius: 999px; background: none; color: var(--enki-ink-2); font-size: 13.5px; text-align: left; white-space: nowrap; cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease;
+}
+.ek-sub-row:hover { background: color-mix(in oklab, var(--enki-ink) 7%, transparent); color: var(--enki-ink); }
+.ek-sub-row:focus-visible { outline: 2px solid var(--enki-ember); outline-offset: -2px; }
+.ek-sub-row[aria-current="page"] { font-weight: 600; color: var(--enki-ink); }
+.ek-sub-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ek-sub-dot { width: 6px; height: 6px; flex-shrink: 0; border-radius: 50%; background: var(--enki-rule); }
+.ek-sub-row[aria-current="page"] .ek-sub-dot { background: var(--enki-ember); }
+.ek-sub-row svg, .ek-burger-sub svg { flex-shrink: 0; color: var(--enki-ink-3); }
+/* In the short window's Menu: under Studio, indented. */
+.ek-burger-item.ek-burger-sub { gap: 8px; height: 30px; padding-left: 34px; font-size: 12.5px; color: var(--enki-ink-2); }
+.ek-burger-sub[aria-current="page"] { font-weight: 600; color: var(--enki-ink); }
+.ek-burger-sub[aria-current="page"] .ek-sub-dot { background: var(--enki-ember); }
+@media (prefers-reduced-motion: reduce) { .ek-sub, .ek-sub-toggle svg { transition: none; } }
+
+/* ── Create Prompt CTA ── */
+.ek-create {
+  position: relative; display: flex; align-items: center; justify-content: center; gap: 9px;
+  height: 54px; margin: 28px 4px 0; border: none; border-radius: 12px;
+  background: var(--cta-bg); color: var(--cta-ink);
+  font-size: 16px; font-weight: 600; letter-spacing: 0.01em; width: calc(100% - 8px);
+  box-shadow: 0 6px 18px rgba(var(--ember-rgb), 0.32);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+}
+.ek-create:hover { transform: translateY(-1px); box-shadow: 0 10px 26px rgba(var(--ember-rgb), 0.42); filter: brightness(1.04); }
+.ek-create:active { transform: translateY(0) scale(0.98); }
+.ek-create-label { white-space: nowrap; }
+.ek-root--rail .ek-create { width: 46px; height: 46px; padding: 0; margin: 14px auto 0; border-radius: 14px; }
+.ek-root--rail .ek-create .ek-create-label { display: none; }
+
+.ek-side-spacer { flex: 1; }
+
+/* ── Sidebar footer (account) ── */
+.ek-account {
+  display: flex; align-items: center; gap: 11px; margin-top: 14px; padding: 8px 10px; border-radius: 999px;
+  transition: background 0.16s ease; cursor: pointer;
+}
+.ek-account:hover { background: color-mix(in oklab, var(--enki-ink) 7%, transparent); }
+.ek-root--rail .ek-account { justify-content: center; padding: 6px 0; }
+.ek-root--rail .ek-avatar { font-size: 12.5px; }
+.ek-avatar {
+  width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;
+  background: var(--enki-ink); color: var(--enki-paper);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono), monospace; font-size: 13px; font-weight: 600;
+  overflow: hidden;
+}
+.ek-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.ek-account-info { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+.ek-account-side { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0; }
+.ek-root--rail .ek-account-side { display: none; }
+.ek-account-nametext { font-size: 14px; font-weight: 600; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.ek-root--rail .ek-account-info, .ek-root--rail .ek-account-more { display: none; }
+.ek-account-handle { font-size: 12px; color: var(--enki-ink-3); font-family: var(--font-mono), monospace; }
+.ek-account-more { margin-left: auto; color: var(--enki-ink-3); }
+/* 3-dot options menu on the profile row — appears on hover, opens upward */
+.ek-account { position: relative; }
+.ek-kebab { position: absolute; top: -8px; right: 6px; width: 24px; height: 24px; border: 1px solid var(--enki-rule); border-radius: 50%; background: var(--enki-paper); color: var(--enki-ink-3); display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0; transition: opacity 0.15s, color 0.15s; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12); }
+.ek-account:hover .ek-kebab, .ek-kebab.on { opacity: 1; }
+/* A key's focus shows it too: it is the desktop's only way to Settings (review 2026-10-30: Tab landed on an invisible button). */
+.ek-kebab:focus-visible { opacity: 1; }
+/* No hover on touch: the menu that holds Settings shows (Kev, 2026-10-30: Settings left the main list). */
+@media (hover: none) { .ek-kebab { opacity: 1; } }
+.ek-kebab:hover, .ek-kebab.on { color: var(--enki-ink); border-color: var(--enki-ink-3); }
+.ek-kebab--rail { top: -10px; right: -4px; width: 20px; height: 20px; }
+.ek-color-dd--up { bottom: calc(100% + 8px); right: 0; left: auto; }
+/* On the 72px rail the menu anchored right grew off the screen's left edge (Kev, 2026-10-15):
+   there it opens beside the avatar, over the page. */
+.ek-root--rail .ek-color-dd--up { bottom: 0; left: calc(100% + 10px); right: auto; }
+/* ── Earn money section (refer + feedback) ── */
+.ek-earn-lab { display: flex; align-items: center; gap: 6px; margin: 12px 8px 2px; }
+.ek-earn-lab span:first-child { font-size: 12px; font-weight: 600; color: var(--enki-ink-3); }
+.ek-earn-rule { flex: 1; border-top: 1px dashed var(--enki-rule); }
+.ek-rail-rule { width: 28px; margin: 8px 0 6px; border-top: 1px dashed var(--enki-rule); flex-shrink: 0; }
+.ek-earn-row { position: relative; display: flex; align-items: center; gap: 13px; height: 36px; padding: 0 12px; border: none; border-radius: 999px; background: none; color: var(--enki-ink); font-size: 13.5px; width: 100%; text-align: left; cursor: pointer; }
+.ek-earn-row:hover { background: color-mix(in oklab, var(--enki-ink) 7%, transparent); }
+/* Railed, these must sit on the same vertical axis as the nav icons above
+   them. .ek-nav-item got that treatment and .ek-earn-row never did, so it kept
+   `padding: 0 12px` and `width: 100%`: its icon sat 12px from the edge of a
+   78px rail while every icon above it was centred at 39 (Kev, 2026-08-19).
+   Height stays 36 — only the horizontal alignment was wrong. */
+.ek-root--rail .ek-earn-row { width: 46px; height: 46px; padding: 0; justify-content: center; gap: 0; border-radius: 50%; margin: 0 auto; }
+.ek-earn-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ek-earn-chip { font-family: var(--font-mono), monospace; font-size: 9px; font-weight: 700; color: var(--enki-ember); background: rgba(var(--ember-rgb), 0.1); border: 1px solid rgba(var(--ember-rgb), 0.4); border-radius: 4px; padding: 1px 6px; flex-shrink: 0; }
+.ek-earn-chip--rail { position: absolute; right: 3px; bottom: 5px; font-size: 8px; padding: 0 3px; background: var(--enki-paper); }
+
+/* ── balance pill (in account row) ── */
+.ek-balance {
+  display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 9px; border-radius: 7px;
+  background: color-mix(in oklab, var(--enki-ember) 16%, transparent); border: 1px solid rgba(var(--ember-rgb), 0.35);
+  color: var(--enki-ember); font-family: var(--font-mono), monospace; font-size: 12px; font-weight: 600;
+  flex-shrink: 0; cursor: pointer; transition: background 0.15s;
+}
+.ek-balance:hover { background: color-mix(in oklab, var(--enki-ember) 26%, transparent); }
+.ek-root--rail .ek-balance { display: none; }
+
+/* A nav item not built out yet: greyed, not clickable (Kev, 2026-11-09: Communities). */
+.ek-nav-item:disabled, .ek-burger-item:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ── thin red "no recovery" banner across the very top ── */
+.ek-recovery-banner {
+  position: fixed; top: 0; left: 0; right: 0; height: 30px; z-index: 300;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 0 44px 0 14px;
+  background: #b3271e; color: #fff;
+  font-size: 12.5px; font-weight: 600; letter-spacing: 0.01em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ek-recovery-banner-msg {
+  border: none; background: none; color: #fff; cursor: pointer;
+  font: inherit; text-decoration: underline; text-underline-offset: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0;
+}
+.ek-recovery-banner-msg:hover { opacity: 0.85; }
+.ek-recovery-banner-x {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  width: 22px; height: 22px; border-radius: 50%; border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255, 255, 255, 0.16); color: #fff;
+}
+.ek-recovery-banner-x:hover { background: rgba(255, 255, 255, 0.3); }
+/* The banner pushes EVERY fixed layer down so nothing hides behind it.
+   It must never COVER the UI — it displaces it (Kev, 2026-08-13).
+
+   --ek-banner-h carries the height, so a fixed layer opts in by reading the
+   variable instead of by being remembered here. This used to be a hand-kept
+   list of selectors each repeating a literal 30, and the image view — added
+   later, and fixed at top: 0 — was simply never added to it, so it opened
+   underneath the banner with its title cut off. A list you must remember to
+   extend is a list that will be forgotten; a variable is inherited by
+   whatever comes next. The 2FA bar sets it on the root, so .ek-app pages
+   outside the shell (admin) inherit it. */
+.ek-app.ek-with-banner { --ek-banner-h: 30px; }
+
+.ek-with-banner .ek-sidebar { top: var(--ek-banner-h); }
+.ek-with-banner .ek-topbar { top: var(--ek-banner-h); }
+.ek-with-banner .ek-panel-scrim { top: var(--ek-banner-h); }
+
+/* ── small viewports: compress the sidebar so nothing ever overlaps ── */
+@media (max-height: 800px) {
+  .ek-sidebar { padding-top: 10px; padding-bottom: 12px; }
+  .ek-nav { gap: 1px; }
+  .ek-nav-item { height: 40px; }
+  .ek-create { height: 42px; margin-top: 10px; font-size: 14px; }
+  .ek-account { margin-top: 8px; }
+  .ek-avatar { width: 34px; height: 34px; }
+}
+
+/* ── The burger, for viewports too short to stand the nav up ──────────
+   Hidden by default and revealed by the query below, so nothing here
+   depends on measuring the window from JavaScript.
+
+   Below 640px of height the list used to scroll behind a hidden scrollbar:
+   the tail of the menu was simply gone, with nothing on screen admitting
+   it (Kev, 2026-08-13 — only home, refer and chat left standing). A menu
+   that silently drops its own entries is worse than one that folds up and
+   says so, so the whole list moves into a popover and what stays in the
+   rail is the burger plus the two things you came to press.
+
+   642 is measured, not chosen (headless Edge, 2026-10-30, the menu of six:
+   Explore, Communities, Create, Studio, Hall of Fame, Inbox, then Refer a
+   prompt, Feedback, Create Prompt and the account row, compressed as below
+   800px, the fold switched off): signed in, the labelled column with
+   Studio's submenu down to its one row holds down to a 579px window, the
+   icon rail down to 596, and the top slot (recovery warning, 2FA bar, trial
+   line) takes 30 off the viewport before the sidebar sees it (609 and 626)
+   — so 626 is the last viewport that holds every signed-in menu, and 642
+   leaves the same 16px margin as before. Above it the submenu gives up
+   rows before anything else gives way (EnkiSidebar). Inbox's badge adds no
+   height; a guest's menu (Explore, Communities, Create, Hall of Fame: four
+   items) needs less: it holds down to 406 in the column, 502 in the rail,
+   490 and 532 under the top slot, so it keeps the fold it had, 548, with
+   the same 16px (review 2026-10-30: at 595 a guest's labelled menu folded
+   with 172px to spare); 642 is for the signed-in menu alone (EnkiSidebar's
+   data-studio). The guest's column pair is 84 apart, not 30: below a 461px
+   window the logo goes (max-height: 460px, below), which gives the column
+   48px back without the slot, and under the slot the window is still taller
+   than that (re-measured 2026-10-30, same numbers; the slot's column gives
+   way at 489 with the logo at 48px). The old "440 in the column and the
+   rail" for three items was the old loop's floor (it stopped at 440), not
+   a limit. The menu of five (before Communities) needed 579 (fold
+   595); the menu of four 532 (fold 548); the old six-item menu 714px, hence 760 then. The band between 640 and 744 was the
+   broken one back then: the scroll fallback did not reach it, so the account
+   row simply fell off the bottom of the screen (measured at 720px: 24px of
+   it below the fold). */
+.ek-burger-wrap { display: none; position: relative; flex-shrink: 0; }
+/* Expanded, it is a labelled row like everything else in the column; railed,
+   it collapses to the same circle the nav items use. Same order as .ek-nav-item
+   below — full form first, rail as the override. */
+.ek-burger {
+  display: flex; align-items: center; gap: 12px; position: relative;
+  width: 100%; height: 40px; margin: 2px 0 4px; padding: 0 14px;
+  border: 1px solid var(--enki-rule); border-radius: 999px;
+  background: none; color: var(--enki-ink); font-size: 14px; text-align: left; cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease;
+}
+.ek-burger-btn-label { flex: 1; }
+.ek-root--rail .ek-burger { width: 40px; padding: 0; margin: 2px auto 4px; justify-content: center; border-radius: 50%; }
+.ek-burger:hover, .ek-burger.on { background: color-mix(in oklab, var(--enki-ink) 8%, transparent); border-color: var(--enki-ink-3); }
+.ek-burger-badge { position: absolute; top: -3px; right: -3px; min-width: 16px; height: 16px; font-size: 9px; padding: 0 4px; }
+.ek-burger-menu {
+  position: absolute; top: 0; left: calc(100% + 8px); z-index: 210;
+  min-width: 208px; max-height: 78vh; overflow-y: auto;
+  padding: 6px; border: 1px solid var(--enki-rule); border-radius: 12px;
+  background: var(--enki-paper); box-shadow: 0 12px 34px rgba(0, 0, 0, 0.26);
+}
+.ek-burger-item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  height: 34px; padding: 0 10px; border: none; border-radius: 8px;
+  background: none; color: var(--enki-ink); font-size: 13.5px; text-align: left; cursor: pointer;
+}
+.ek-burger-item:hover { background: color-mix(in oklab, var(--enki-ink) 8%, transparent); }
+.ek-burger-item.active { font-weight: 600; }
+.ek-burger-item.active svg { color: var(--enki-ember); }
+.ek-burger-label { flex: 1; white-space: nowrap; }
+.ek-burger-sep { height: 1px; margin: 5px 8px; background: var(--enki-rule); }
+
+@media (max-height: 548px) {
+  /* The rail keeps only the burger and the two create buttons; everything
+     with a label moves into the popover. */
+  .ek-burger-wrap { display: block; }
+  .ek-nav, .ek-earn-lab, .ek-rail-rule, .ek-earn-row { display: none; }
+  .ek-logo { height: 38px; margin-bottom: 4px; }
+  .ek-logo-img { height: 26px; }
+  .ek-logo-mark, .ek-logo-mark-img { width: 32px; height: 32px; }
+  .ek-toggles { top: 58px; }
+  .ek-create { height: 40px; margin-top: 8px; font-size: 14px; }
+  .ek-root--rail .ek-create { width: 40px; height: 40px; }
+  .ek-avatar { width: 30px; height: 30px; font-size: 11px; }
+  .ek-account { margin-top: 6px; }
+}
+/* The same fold, sooner for the signed-in menu of six (measured above); :where() keeps each rule's weight as above,
+   so the phone's drawer still lists every item itself. */
+@media (max-height: 642px) {
+  :where(.ek-sidebar[data-studio]) .ek-burger-wrap { display: block; }
+  :where(.ek-sidebar[data-studio]) :is(.ek-nav, .ek-earn-lab, .ek-rail-rule, .ek-earn-row) { display: none; }
+  :where(.ek-sidebar[data-studio]) .ek-logo { height: 38px; margin-bottom: 4px; }
+  :where(.ek-sidebar[data-studio]) .ek-logo-img { height: 26px; }
+  :where(.ek-sidebar[data-studio]) :is(.ek-logo-mark, .ek-logo-mark-img) { width: 32px; height: 32px; }
+  :where(.ek-sidebar[data-studio]) .ek-toggles { top: 58px; }
+  :where(.ek-sidebar[data-studio]) .ek-create { height: 40px; margin-top: 8px; font-size: 14px; }
+  .ek-root--rail :where(.ek-sidebar[data-studio]) .ek-create { width: 40px; height: 40px; }
+  :where(.ek-sidebar[data-studio]) .ek-avatar { width: 30px; height: 30px; font-size: 11px; }
+  :where(.ek-sidebar[data-studio]) .ek-account { margin-top: 6px; }
+}
+@media (max-height: 460px) {
+  /* Nothing left to fold: the popover itself scrolls and the rail is just
+     the burger, one create button and the account. */
+  .ek-burger { width: 34px; height: 34px; }
+  .ek-logo { display: none; }
+  .ek-toggles { top: 14px; }
+}
+.ek-create, .ek-account { flex-shrink: 0; }
+
+/* ── log off button (in account row) ── */
+.ek-logoff {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+  border: 1px solid var(--enki-rule); background: transparent; color: var(--enki-ink-3);
+  cursor: pointer; transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.ek-logoff:hover { color: var(--enki-danger); border-color: rgba(224, 88, 79, 0.5); background: rgba(224, 88, 79, 0.06); }
+.ek-root--rail .ek-logoff { display: none; }
+
+/* ── color setup dropdown ── */
+.ek-color-dd { position: absolute; z-index: 140; width: 158px; background: var(--enki-paper); border: 1px solid var(--enki-rule); border-radius: 12px; box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28); padding: 6px; animation: ek-dd-in 0.16s ease; }
+.ek-color-dd-h { font-family: var(--font-jetbrains-mono), ui-monospace, monospace; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--enki-label-quiet); padding: 5px 9px 7px; }
+.ek-color-opt { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 9px; border: none; background: none; border-radius: 9px; color: var(--enki-ink); font-size: 14px; font-weight: 500; text-align: left; transition: background 0.14s; }
+.ek-color-opt:hover { background: color-mix(in oklab, var(--enki-ink) 7%, transparent); }
+.ek-color-sw { width: 22px; height: 22px; border-radius: 6px; flex-shrink: 0; border: 1px solid rgba(0, 0, 0, 0.1); }
+.ek-color-opt.active { font-weight: 600; }
+.ek-color-opt.active .ek-color-check { margin-left: auto; color: var(--enki-ember); }
+/* Settings above the themes, a rule between (Kev, 2026-10-30). */
+.ek-settings-opt { margin-bottom: 4px; padding-bottom: 10px; border-bottom: 1px solid var(--enki-rule-2); border-radius: 9px 9px 0 0; cursor: pointer; }
+
+/* ── shell top bar (search) ── */
+.ek-topbar {
+  position: fixed; top: 0; left: var(--ek-sw); right: 0; z-index: 95; height: 56px;
+  display: flex; align-items: center; gap: 14px; padding: 0 26px;
+  background: var(--header-bg);
+  backdrop-filter: blur(40px) saturate(180%); -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border-bottom: 1px solid var(--enki-rule);
+  transition: left 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.ek-search {
+  display: flex; align-items: center; gap: 10px; flex: 1 1 auto; min-width: 120px; max-width: 460px;
+  height: 40px; padding: 0 14px; border: 1px solid var(--enki-rule); border-radius: 999px; background: var(--enki-paper-2);
+  transition: border-color 0.16s, box-shadow 0.16s;
+}
+.ek-search:focus-within { border-color: var(--enki-ember); box-shadow: 0 0 0 3px rgba(var(--ember-rgb), 0.14); }
+.ek-search input { flex: 1; min-width: 0; background: none; border: none; outline: none; font-size: 14px; color: var(--enki-ink); font-family: var(--font-sans), sans-serif; }
+.ek-search input::placeholder { color: var(--enki-ink-3); }
+.ek-kbd { font-family: var(--font-mono), monospace; font-size: 10px; color: var(--enki-ink-3); border: 1px solid var(--enki-rule); border-radius: 4px; padding: 2px 5px; flex-shrink: 0; }
+
+/* ════════════════ Modals (log off / refer / feedback) ════════════════ */
+.ek-modal-scrim { position: fixed; inset: 0; z-index: 300; background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; padding: 24px; animation: ek-fade 0.2s ease; }
+.ek-modal { width: 100%; max-width: 480px; background: var(--enki-paper); border: 1px solid var(--enki-rule); border-radius: 18px; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4); overflow: hidden; animation: ek-pop 0.26s cubic-bezier(0.16, 1, 0.3, 1); }
+.ek-modal-head { display: flex; align-items: center; gap: 12px; padding: 18px 22px; border-bottom: 1px solid var(--enki-rule); }
+/* A window's title in Settings' title type (Kev, 2026-11-08: "the same style approach as in the settings"; DEC-2026-11-08-04):
+   enki-window.ts TITLE's face, italic, 400, tracking and ink, at a header's 22px (Settings' section titles are 20px). */
+.ek-modal-title { font-family: var(--font-serif), Georgia, serif; font-style: italic; font-weight: 400; font-size: 22px; letter-spacing: -0.02em; color: var(--enki-ink); }
+.ek-modal-x { margin-left: auto; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--enki-rule); background: var(--enki-paper-2); color: var(--enki-ink-2); display: flex; align-items: center; justify-content: center; }
+.ek-modal-x:hover { color: var(--enki-ink); border-color: var(--enki-ink-3); }
+.ek-modal-body { padding: 22px; }
+.ek-sheet-bolt { width: 32px; height: 32px; border-radius: 9px; display: flex; align-items: center; justify-content: center; background: var(--cta-bg); color: var(--cta-ink); box-shadow: 0 4px 12px rgba(var(--ember-rgb), 0.3); }
+/* A window's small label: Settings' (.set-holdings-label) in the quiet label tone, as enki-window.ts LABEL. */
+.ek-ed-lab { font-family: var(--font-jetbrains-mono), ui-monospace, monospace; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--enki-label-quiet); margin: 0 0 6px; display: block; }
+
+/* primary / secondary buttons (shared with node creator); the primary is the windows' CTA, with no border (DEC-2026-11-08-21) */
+.ek-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 46px; border: none; border-radius: 999px; background: var(--cta-bg); color: var(--cta-ink); font-size: 14px; font-weight: 600; transition: transform 0.16s ease, filter 0.16s ease; }
+.ek-btn:hover { transform: translateY(-1px); filter: brightness(1.05); }
+.ek-btn:disabled { background: var(--enki-paper-3); color: var(--enki-ink-2); cursor: default; transform: none; filter: none; }
+.ek-btn-2 { border: 1px solid var(--enki-rule); background: var(--enki-paper-2); color: var(--enki-ink); }
+.ek-btn-2:hover { border-color: var(--enki-ink-3); }
+
+/* ── refer modal ── */
+.ek-refer-input { display: flex; align-items: center; gap: 10px; height: 50px; padding: 0 14px; border: 1px solid var(--enki-rule); border-radius: 12px; background: var(--enki-paper-2); transition: border-color 0.15s, box-shadow 0.15s; }
+.ek-refer-input:focus-within { border-color: var(--enki-ember); box-shadow: 0 0 0 3px rgba(var(--ember-rgb), 0.13); }
+.ek-refer-input.err { border-color: #e0584f; }
+.ek-refer-input input { flex: 1; min-width: 0; border: none; background: none; outline: none; font-size: 14px; color: var(--enki-ink); font-family: var(--font-sans), sans-serif; }
+.ek-refer-input input::placeholder { color: var(--enki-ink-3); }
+.ek-refer-detected { flex-shrink: 0; font-family: var(--font-mono), monospace; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--enki-ember); background: rgba(var(--ember-rgb), 0.12); border: 1px solid rgba(var(--ember-rgb), 0.35); border-radius: 999px; padding: 3px 9px; }
+.ek-refer-hint { font-size: 11.5px; color: #e0584f; margin-top: 7px; }
+.ek-refer-note { width: 100%; border: 1px solid var(--enki-rule); border-radius: 12px; background: var(--enki-paper-2); color: var(--enki-ink); font-size: 13.5px; line-height: 1.5; padding: 11px 13px; outline: none; resize: vertical; font-family: var(--font-sans), sans-serif; }
+.ek-refer-note:focus { border-color: var(--enki-ember); box-shadow: 0 0 0 3px rgba(var(--ember-rgb), 0.13); }
+.ek-refer-note::placeholder { color: var(--enki-ink-3); }
+.ek-refer-steps { display: flex; flex-direction: column; gap: 2px; margin: 18px 0 4px; padding: 14px 16px; border: 1px solid var(--enki-rule); border-radius: 12px; background: var(--enki-paper-2); position: relative; }
+.ek-refer-step { display: flex; align-items: center; gap: 11px; font-size: 12.5px; color: var(--enki-ink-2); padding: 5px 0; }
+.ek-refer-step-n { width: 22px; height: 22px; flex-shrink: 0; border-radius: 50%; background: var(--cta-bg); color: var(--cta-ink); font-family: var(--font-mono), monospace; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+
+/* keyframes */
+@keyframes ek-dd-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes ek-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ek-pop { from { opacity: 0; transform: translateY(14px) scale(0.98); } to { opacity: 1; transform: none; } }
+
+/* ════════════════ Right-side menu panel ════════════════
+   Appears over the main area (left menu stays usable); fades in, no slide. */
+.ek-panel-scrim { position: fixed; top: 0; bottom: 0; right: 0; left: var(--ek-sw); z-index: 160; background: rgba(0, 0, 0, 0.42); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); display: flex; justify-content: flex-end; animation: ek-fade 0.16s ease; transition: left 0.26s cubic-bezier(0.4, 0, 0.2, 1); }
+.ek-panel { width: min(480px, 100%); height: 100%; background: var(--enki-paper); border-left: 1px solid var(--enki-rule); box-shadow: -24px 0 70px rgba(0, 0, 0, 0.28); display: flex; flex-direction: column; animation: ek-fade 0.18s ease; }
+/* full view (e.g. Profile): fills the whole main area, no dim/slide */
+.ek-panel-scrim--full {
+  background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none;
+  /* No fade-in: full panels must cover INSTANTLY. The 0.16s ek-fade let the
+     home feed flash through when switching out of Create Prompt 2 (the node
+     editor unmounts in the same paint, but the panel spent 160ms at opacity 0). */
+  animation: none;
+}
+.ek-panel--full { width: 100%; max-width: none; border-left: none; box-shadow: none; animation: none; }
+.ek-panel-head { display: flex; align-items: center; gap: 12px; height: 60px; padding: 0 16px 0 22px; border-bottom: 1px solid var(--enki-rule); flex-shrink: 0; background: var(--header-bg); }
+.ek-panel-title { font-family: var(--font-serif), Georgia, serif; font-size: 21px; color: var(--enki-ink); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ek-panel { position: relative; }
+/* The panel's way out: a quiet arrow at the top left, above its headline, as the profile's and Settings' Back (DEC-468). */
+.ek-panel-back {
+  display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; margin: 10px 0 -6px 10px; padding: 0;
+  border: 0; border-radius: 50%; background: none; color: var(--enki-ink-2); cursor: pointer;
+}
+.ek-panel-back:hover { background: var(--enki-fill); color: var(--enki-ink); }
+
+/* ── One frame and one headline for every panel page (Kev, 2026-10-29: "make it unified fitting my style"; DEC-499):
+   the Hall of Fame's 880 px column, its italic serif title with a full stop, a quiet line under it, the page's own
+   controls at the right. Messages keeps its title at the left of its list, in the same type. ── */
+.ek-page { max-width: 880px; margin: 0 auto; padding: 34px 28px 60px; }
+.ek-page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px 16px; flex-wrap: wrap; margin-bottom: 22px; }
+.ek-page-title { font-family: var(--font-serif), Georgia, serif; font-style: italic; font-weight: 400; font-size: 44px; line-height: 1.05; margin: 0; color: var(--enki-ink); }
+.ek-page-sub { margin: 4px 0 0; max-width: 560px; font-size: 13.5px; line-height: 1.55; color: var(--enki-ink-3); }
+.ek-page-pill { padding: 4px 10px; border: 1px solid var(--enki-rule); border-radius: 999px; background: transparent; color: var(--enki-ink-3); font-size: 10.5px; font-weight: 600; white-space: nowrap; cursor: pointer; transition: all 0.15s; }
+.ek-page-pill.on { border-color: var(--enki-ink); background: var(--enki-ink); color: var(--enki-paper); }
+.ek-panel-body { flex: 1; overflow-y: auto; }
+/* Studio's and Inbox's tabs (Kev, 2026-10-30): a row in the look of Explore's (.feed-world), at the panel's top while
+   its page scrolls under it; on a phone it gives way with the header (ek-tuck-hide). */
+.ek-panel-tabs {
+  position: sticky; top: 0; z-index: 5; flex-shrink: 0;
+  display: flex; align-items: center; height: 44px; padding: 0 24px;
+  background: var(--header-bg);
+  backdrop-filter: blur(64px) saturate(200%); -webkit-backdrop-filter: blur(64px) saturate(200%);
+  border-bottom: 1px solid color-mix(in oklab, var(--enki-ink) 8%, transparent);
+}
+.ek-panel-stub { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; height: 100%; color: var(--enki-ink-3); text-align: center; padding: 40px; }
+/* tame full-page layouts reused inside the panel */
+.ek-panel-body .set-page { min-height: auto; }
+.ek-panel-body .set-save-floater { position: sticky; bottom: 12px; }
+
+/* ════════════════ Messages (DMs) ════════════════ */
+/* fills the panel from the left — no centering gap, no stray side borders */
+.ek-msg-root { display: flex; height: 100%; min-height: 480px; background: var(--enki-paper); }
+/* Under the panel's arrow (DEC-468) it fills what is left, not the whole body: at 100 % it ran 40 px past the panel and
+   pushed the composer under its edge (review wf_e68176b7-d81; DEC-469). */
+.ek-panel-body:has(.ek-msg-root) { display: flex; flex-direction: column; }
+.ek-panel-body .ek-msg-root { flex: 1; height: auto; }
+.ek-msg-side { width: 284px; flex-shrink: 0; border-right: 1px solid var(--enki-rule); display: flex; flex-direction: column; min-height: 0; }
+/* The title sits as high as every panel's (34 px), in their type (.ek-page-title; DEC-499). */
+.ek-msg-side-head { padding: 34px 16px 10px; flex-shrink: 0; }
+.ek-msg-title { margin-bottom: 14px; }
+/* Messages | Requests (DEC-513): one pill, its open half filled; the requests' count rides its top right. */
+.ek-msg-box { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 3px; margin-bottom: 10px; border: 1px solid var(--enki-rule); border-radius: 999px; background: var(--enki-paper-2); }
+.ek-msg-box-btn { position: relative; height: 26px; border: none; border-radius: 999px; background: transparent; color: var(--enki-ink-2); font-size: 12px; font-weight: 600; cursor: pointer; transition: background 0.15s, color 0.15s; }
+.ek-msg-box-btn.on { background: var(--enki-ink); color: var(--enki-paper); }
+.ek-msg-box-count { position: absolute; top: -6px; right: 4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: var(--cta-solid); color: var(--cta-ink); font-family: var(--font-mono), monospace; font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+.ek-msg-accept { flex-shrink: 0; padding: 14px 16px 16px; border-top: 1px solid var(--enki-rule); display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
+.ek-msg-accept p { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--enki-ink-2); }
+.ek-msg-accept-btn { height: 36px; padding: 0 20px; border: none; border-radius: 999px; background: var(--enki-ink); color: var(--enki-paper); font-size: 13px; font-weight: 600; cursor: pointer; }
+.ek-msg-accept-btn:disabled { opacity: 0.5; cursor: default; }
+.ek-msg-search { display: flex; align-items: center; gap: 7px; height: 32px; border: 1px solid var(--enki-rule); border-radius: 999px; background: var(--enki-paper-2); padding: 0 11px; color: var(--enki-ink-3); transition: border-color 0.16s, box-shadow 0.16s; }
+.ek-msg-search:focus-within { border-color: var(--enki-ember); box-shadow: 0 0 0 3px rgba(var(--ember-rgb), 0.14); }
+.ek-msg-search input { flex: 1; min-width: 0; border: none; background: transparent; outline: none; font-size: 12px; color: var(--enki-ink); font-family: var(--font-sans), sans-serif; }
+.ek-msg-search input::placeholder { color: var(--enki-ink-3); }
+.ek-msg-convs { flex: 1; min-height: 0; overflow-y: auto; padding: 2px 8px 12px; display: flex; flex-direction: column; gap: 2px; }
+.ek-msg-row { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border: none; border-radius: 12px; background: transparent; text-align: left; width: 100%; color: var(--enki-ink); cursor: pointer; }
+.ek-msg-row:hover { background: color-mix(in oklab, var(--enki-ink) 6%, transparent); }
+.ek-msg-row.on { background: color-mix(in oklab, var(--enki-ink) 8%, transparent); }
+.ek-msg-row-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ek-msg-row-time { margin-left: auto; font-family: var(--font-mono), monospace; font-size: 9.5px; color: var(--enki-ink-3); flex-shrink: 0; }
+.ek-msg-row-prev { flex: 1; min-width: 0; font-size: 11.5px; color: var(--enki-ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ek-msg-row.unread .ek-msg-row-name { font-weight: 700; }
+.ek-msg-row.unread .ek-msg-row-prev { color: var(--enki-ink); font-weight: 600; }
+.ek-msg-pill { min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: var(--cta-solid); color: var(--cta-ink); font-family: var(--font-mono), monospace; font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.ek-msg-lab { padding: 10px 10px 4px; font-family: var(--font-jetbrains-mono), ui-monospace, monospace; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--enki-label-quiet); }
+.ek-msg-thread { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; background: var(--enki-paper-2); }
+.ek-msg-thead { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--enki-rule); background: var(--enki-paper); flex-shrink: 0; }
+.ek-msg-peer { display: flex; align-items: center; gap: 10px; min-width: 0; border: none; background: none; padding: 2px 6px 2px 2px; border-radius: 10px; text-align: left; color: var(--enki-ink); cursor: pointer; }
+.ek-msg-peer:hover { background: color-mix(in oklab, var(--enki-ink) 6%, transparent); }
+.ek-msg-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 18px 8px; display: flex; flex-direction: column; gap: 8px; }
+.ek-msg-sep { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
+.ek-msg-sep::before, .ek-msg-sep::after { content: ""; flex: 1; border-top: 1px dashed var(--enki-rule); }
+.ek-msg-sep span { font-family: var(--font-jetbrains-mono), ui-monospace, monospace; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--enki-label-quiet); }
+.ek-msg-bubble { display: inline-block; max-width: 100%; padding: 8px 12px; border-radius: 14px 14px 14px 4px; background: var(--enki-paper); color: var(--enki-ink); border: 1px solid var(--enki-rule-2); font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ek-msg-item.mine .ek-msg-bubble { border-radius: 14px 14px 4px 14px; background: var(--enki-ink); color: var(--enki-paper); border: none; }
+.ek-msg-img { max-width: 240px; max-height: 220px; border-radius: 12px; border: 1px solid var(--enki-rule); display: block; object-fit: cover; }
+.ek-msg-time { font-family: var(--font-mono), monospace; font-size: 8.5px; color: var(--enki-ink-3); padding: 0 4px; }
+.ek-msg-compose-wrap { flex-shrink: 0; padding: 10px 16px 14px; position: relative; }
+.ek-msg-emoji { position: absolute; bottom: calc(100% - 2px); left: 54px; background: var(--enki-paper); border: 1px solid var(--enki-rule); border-radius: 12px; box-shadow: 0 14px 34px rgba(0, 0, 0, 0.18); padding: 8px; display: grid; grid-template-columns: repeat(6, 30px); gap: 2px; z-index: 20; animation: ek-pop 0.15s ease; }
+.ek-msg-emoji button { width: 30px; height: 30px; border: none; background: none; border-radius: 7px; font-size: 17px; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; }
+.ek-msg-emoji button:hover { background: color-mix(in oklab, var(--enki-ink) 7%, transparent); }
+.ek-msg-compose { display: flex; align-items: center; gap: 6px; border: 1px solid var(--enki-rule); border-radius: 999px; background: var(--enki-paper); padding: 5px 6px 5px 8px; transition: border-color 0.16s, box-shadow 0.16s; }
+.ek-msg-compose:focus-within { border-color: var(--enki-ember); box-shadow: 0 0 0 3px rgba(var(--ember-rgb), 0.12); }
+.ek-msg-icon-btn { width: 30px; height: 30px; border: none; border-radius: 50%; background: none; color: var(--enki-ink-3); display: flex; align-items: center; justify-content: center; flex-shrink: 0; cursor: pointer; }
+.ek-msg-icon-btn:hover { background: color-mix(in oklab, var(--enki-ink) 7%, transparent); color: var(--enki-ink); }
+.ek-msg-icon-btn.on { background: color-mix(in oklab, var(--enki-ink) 8%, transparent); }
+.ek-msg-icon-btn:disabled { opacity: 0.5; cursor: default; }
+.ek-msg-compose > input[type="text"] { flex: 1; min-width: 0; border: none; background: transparent; outline: none; font-size: 13px; color: var(--enki-ink); padding: 4px 2px; font-family: var(--font-sans), sans-serif; }
+.ek-msg-compose > input[type="text"]::placeholder { color: var(--enki-ink-3); }
+/* Soft ember shadow always; the bg swaps muted-tan (empty draft) <-> ember (armed), and the glyph with it: white read 2.43 on the
+   muted-tan in light. */
+.ek-msg-send { width: 32px; height: 32px; border: none; border-radius: 50%; background: color-mix(in oklab, var(--enki-ink-3) 55%, var(--enki-paper-2)); color: var(--enki-ink); box-shadow: 0 4px 10px rgba(var(--ember-rgb), 0.3); display: flex; align-items: center; justify-content: center; flex-shrink: 0; cursor: pointer; transition: background 0.15s; }
+.ek-msg-send.on { background: var(--cta-solid); color: var(--cta-ink); }
+.ek-msg-send.on:hover { filter: none; background: var(--cta-hover); }
+@media (max-width: 760px) { .ek-msg-side { width: 230px; } }
+
+/* ── Login notice (prompt creator for guests) — pops in AND leaves with an
+   animation; ESC and free-space clicks close it. ── */
+.ek-notice-scrim { align-items: center; justify-content: center; left: 0; }
+.ek-notice-scrim.leaving { animation: ek-notice-out 0.14s ease forwards; }
+@keyframes ek-notice-out { to { opacity: 0; } }
+.ek-notice { padding: 18px; animation: ek-notice-in 0.16s ease; }
+.ek-notice-scrim.leaving .ek-notice { animation: ek-notice-drop 0.14s ease forwards; }
+@keyframes ek-notice-in { from { opacity: 0; transform: translateY(6px) scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes ek-notice-drop { to { opacity: 0; transform: translateY(4px) scale(0.98); } }
+.ek-notice-text { margin: 0 0 12px; font-size: 13px; line-height: 1.55; color: var(--enki-ink-2); }
+@media (prefers-reduced-motion: reduce) { .ek-notice, .ek-notice-scrim.leaving, .ek-notice-scrim.leaving .ek-notice { animation: none; } }
+/* Disabled earn rows stay readable, just clearly inactive. */
+.ek-earn-row:disabled { opacity: 0.55; cursor: default; }
+
+/* ════════════════ Mobile Shell (< 768px) ════════════════ */
+.ek-mobile-header { display: none; }
+
+@media (max-width: 767.98px) {
+  /* The sidebar is an off-canvas drawer here, so it reserves NO column: every
+     fixed element positioned off --ek-sw (the feed's category+filter bar, the
+     top bar, the node editor, the panel scrim, the toast) would otherwise
+     start 256px from the left of a 375px screen. The rail variant is listed
+     explicitly because .ek-app.ek-root--rail outranks a bare .ek-app. */
+  .ek-app,
+  .ek-app.ek-root--rail { --ek-sw: 0px; }
+
+  /* ── Mobile Top Header ── */
+  .ek-mobile-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: fixed;
+    top: var(--ek-slot);
+    left: 0;
+    right: 0;
+    height: var(--ek-head-h);
+    padding: 0 16px;
+    z-index: 155;
+    /* Solid: through a see-through header the pictures scrolled under it showed, blurred (Kev, 2026-10-26: "speichert
+       the top menü the images from the previous menü im hintergrund, was nicht der fall sein soll"). */
+    background: var(--enki-paper);
+    border-bottom: 1px solid var(--enki-rule);
+    transition: top 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+  }
+  /* Tucked while the page scrolls down (EnkiHome, lib/ui/kit/tuck; Kev, 2026-10-26: "wenn ich runter scrolle, sollte
+     das menü verschwinden ... wobei das burger menü einfach kleiner werden soll"): the header gives way, its burger
+     stays small at the top left over the category bar, which moves up into the header's place. An open image keeps
+     the header: its frame starts under it. */
+  /* The header's height, thinner than its first 54 px (Kev, 2026-10-27: "the top menü a bit thinner"); --ek-head is
+     what it takes while shown, 0 while tucked. */
+  .ek-app { --ek-head-h: 46px; --ek-head: var(--ek-head-h); --ek-slot: var(--ek-banner-h, 0px); }
+  :is(.ek-tucked:not(:has(.iv-frame:not(.is-hidden))), .ek-tucked-image:has(.iv-frame:not(.is-hidden))) { --ek-head: 0px; --ek-slot: 0px; }
+  /* Every top row gives way with it, so only the small burger stays, at the very top (Kev, 2026-10-27: "the entire
+     top rows when i scroll down disappears with only the burger menu staying, which should be the case for all
+     menus"): the top slot (the 2FA bar, a tester's trial line, the recovery warning) goes up, and the rows a panel
+     marks ek-tuck-hide (its X, Settings' Back, the profile's name bar and tabs) fade. --ek-slot is the share of the
+     slot still on screen. */
+  html:is(:has(.ek-tucked):not(:has(.iv-frame:not(.is-hidden))), :has(.ek-tucked-image .iv-frame:not(.is-hidden))) :is(.ek-top-slot, .ek-recovery-banner) { transform: translateY(-100%); }
+  :is(.ek-tucked:not(:has(.iv-frame:not(.is-hidden))), .ek-tucked-image:has(.iv-frame:not(.is-hidden))) .ek-tuck-hide { opacity: 0; visibility: hidden; }
+  :is(.ek-top-slot, .ek-recovery-banner, .ek-tuck-hide) { transition: transform 0.2s ease, opacity 0.2s ease, visibility 0.2s; }
+  :is(.ek-tucked:not(:has(.iv-frame:not(.is-hidden))), .ek-tucked-image:has(.iv-frame:not(.is-hidden))) .ek-mobile-header { background: transparent; border-bottom-color: transparent; pointer-events: none; }
+  :is(.ek-tucked:not(:has(.iv-frame:not(.is-hidden))), .ek-tucked-image:has(.iv-frame:not(.is-hidden))) :is(.ek-mobile-header-home, .ek-mobile-header-right) { opacity: 0; visibility: hidden; }
+  :is(.ek-tucked:not(:has(.iv-frame:not(.is-hidden))), .ek-tucked-image:has(.iv-frame:not(.is-hidden))) .ek-mobile-burger-btn { pointer-events: auto; transform: translateY(-5px) scale(0.78); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18); }
+  .ek-mobile-header-home, .ek-mobile-header-right, .ek-mobile-burger-btn { transition: opacity 0.2s ease, visibility 0.2s, transform 0.2s ease; }
+  /* Above the open drawer (z 166) and its scrim (z 164): the burger that opened the menu stays in place to close it. */
+  .ek-mobile-header.ek-mobile-header--menu { z-index: 167; }
+  /* Above an open panel (z 160) only while tucked, when the panel moves up into the header's place (Kev, 2026-10-27:
+     "this goes also for profile"), so the small burger stays on top. Shown, the header stays under the panel: the
+     lightbox and the modals a panel opens inside its own layer (z 160) would have it on top (review 2026-10-27). */
+  .ek-app.ek-tucked:has(.ek-panel-scrim) .ek-mobile-header:not(.ek-mobile-header--menu) { z-index: 161; }
+  /* A profile's tabs stay while tucked, its name bar gone: stuck, they stop under that burger (5 to 30 px), their
+     labels from 35 (ProfileView; DEC-458). Paper fills the 14 px above them, where the pictures showed through as a
+     bar (Kev, 2026-10-27: "that weird bar above released gallery"; DEC-466), and takes a tap there; unstuck, it lies
+     on the hero's own empty margin (28 px, ProfileView). */
+  .ek-app.ek-tucked { --pf-tabs-top: 14px; }
+  .ek-app.ek-tucked .pf-tabs::before { content: ""; position: absolute; left: 0; right: 0; bottom: calc(100% + 1px); height: 28px; background: var(--enki-paper); }
+  /* Room for the tabs to reach that place on a short shelf too: below them the panel is at least a screen tall less
+     their 14 px and 66 px. A shelf of five came to rest at 34 px, the stats' last line peeking above (DEC-466). */
+  .ek-panel .pf-tabs + .pf-wrap { min-height: calc(100dvh - 80px); }
+  /* Above an open image (z 162) while its own scroll has the header tucked: the image moves up into the header's
+     place (image-view-frame.css), the small burger stays on top (Kev, 2026-10-27: "auch bei image ui mobile"). */
+  .ek-app.ek-tucked-image:has(.iv-frame:not(.is-hidden)) .ek-mobile-header:not(.ek-mobile-header--menu) { z-index: 163; }
+  /* The composer's sticky head ("Your images", the switch) stays, and stuck it stops under that burger (5 to 30 px)
+     instead of beneath it: "Your images" starts at 40 (DEC-455; it faded before, DEC-431). Paper fills the 14 px above
+     it, as over a profile's tabs (DEC-466); unstuck, they are the scroller's own 14 px gap. */
+  .ek-app.ek-tucked-image:has(.iv-frame:not(.is-hidden)) .iv-mode-head { top: 14px; }
+  .ek-app.ek-tucked-image:has(.iv-frame:not(.is-hidden)) .iv-mode-head::before { content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: 14px; background: var(--enki-paper); }
+  /* Room for that head to reach its place at the very end too: the composer is at least the scroller's content box
+     (100 %, its 10 px foot padding already outside) less the head's 14 px. A composer short of that left a slice of
+     the Examples above the head (Kev, 2026-10-28: "ich will keinen reststreifen haben"; DEC-471). MoreBelow counts
+     none of that room. A composer without a head (a guest's plain prompt) has nothing to bring there. */
+  .ek-app .iv-frame .iv-mobile-compose:has(> .iv-mode-head) { min-height: calc(100% - 14px); }
+  .ek-mobile-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .ek-mobile-header-home { display: flex; padding: 0; border: 0; background: none; cursor: pointer; }
+  .ek-mobile-header-logo {
+    height: 24px;
+    width: auto;
+    display: block;
+    object-fit: contain;
+  }
+  /* 12 px between the 32 px buttons: their 44 px presses (kit-hit) meet without overlapping (review 2026-10-27). */
+  .ek-mobile-header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  /* The bell and a guest's sign-in at the top right are the burger's twins (Kev, 2026-10-26: "oben rechts
+     notifications"); never squeezed into ovals by a tight row. */
+  .ek-mobile-burger-btn,
+  .ek-mobile-bell,
+  .ek-mobile-account {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid var(--enki-rule);
+    background: var(--enki-paper-2);
+    color: var(--enki-ink);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+  }
+  .ek-mobile-burger-badge {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    min-width: 16px;
+    height: 16px;
+    border-radius: 999px;
+    background: var(--cta-solid);
+    color: var(--cta-ink);
+    font-size: 9px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+  }
+
+  /* ── Mobile Off-canvas Drawer ── */
+  .ek-mobile-drawer-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 164;
+    background: rgba(0, 0, 0, 0.52);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    animation: ek-fade 0.2s ease;
+  }
+  .ek-sidebar {
+    width: min(300px, 82vw) !important;
+    max-width: 300px !important;
+    transform: translateX(-100%);
+    transition: transform 0.26s cubic-bezier(0.32, 0.72, 0, 1) !important;
+    z-index: 166 !important;
+    /* Shadowed only while open: closed, off to the left, its shadow fell 40 px into the page as a dark strip
+       (Kev, 2026-10-26: "warum habe ich links so ne komische leiste"). */
+    box-shadow: none;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    /* Below the header, whose logo and burger stay on screen, so the drawer shows no logo of its own. */
+    top: calc(var(--ek-head-h) + var(--ek-banner-h, 0px)) !important;
+    padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  }
+  .ek-sidebar .ek-logo { display: none; }
+  .ek-sidebar.ek-sidebar--mobile-open {
+    transform: translateX(0) !important;
+    box-shadow: 8px 0 32px rgba(0, 0, 0, 0.35);
+  }
+  /* The drawer scrolls, so it lists every item itself: the short window's "Menu" popover (548px, 642px signed in, above)
+     put a menu inside the menu (Kev, 2026-10-26: "links möchte ich dann die menüfelder sehen und nicht nochmal Menü"). */
+  .ek-sidebar .ek-burger-wrap { display: none; }
+  .ek-sidebar .ek-nav { display: flex; }
+  .ek-sidebar .ek-earn-lab, .ek-sidebar .ek-earn-row { display: flex; }
+  .ek-sidebar .ek-rail-rule { display: block; }
+  .ek-collapse-btn {
+    display: none !important;
+  }
+  /* The account row, lower (Kev, 2026-10-26: "zu hoch und füllt zu viel aus"): 55 px, was 69. */
+  .ek-sidebar .ek-account { padding: 5px 8px; gap: 10px; }
+  .ek-sidebar .ek-avatar { width: 34px; height: 34px; }
+  .ek-sidebar .ek-account-side { gap: 3px; }
+  .ek-sidebar .ek-balance { height: 21px; }
+  .ek-sidebar .ek-logoff { width: 21px; height: 21px; }
+  /* Drawn at 21 px, each still takes a 24 px press: a near miss inside the row opened the profile instead (review
+     2026-10-26). 1.5 px past the border (inset counts from inside its 1 px), so the two stacked 3 px apart meet but
+     never overlap. */
+  .ek-sidebar :is(.ek-balance, .ek-logoff) { position: relative; }
+  .ek-sidebar :is(.ek-balance, .ek-logoff)::after { content: ""; position: absolute; inset: -2.5px; }
+
+  /* ── Mobile Main Content Bounds ── */
+  .ek-main {
+    margin-left: 0 !important;
+    padding-top: calc(var(--ek-head-h) + var(--ek-banner-h, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    min-width: 100vw;
+  }
+
+  /* ── Right-side Panels on Mobile ── */
+  /* Under the header, or in its place while the panel's own scroll has it tucked (--ek-head; Kev, 2026-10-27). */
+  .ek-panel-scrim {
+    left: 0 !important;
+    top: calc(var(--ek-head) + var(--ek-slot)) !important;
+    width: 100vw !important;
+    z-index: 160 !important;
+    transition: top 0.2s ease;
+  }
+  .ek-panel {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    border-left: none !important;
+    box-shadow: none !important;
+  }
+  .ek-page { padding: 16px 14px calc(24px + env(safe-area-inset-bottom, 0px)); }
+  .ek-page-title { font-size: 30px; }
+  .ek-page-sub { font-size: 13px; }
+  .ek-msg-side-head { padding-top: 16px; }
+  .ek-panel-tabs { padding: 0 12px; }
+  .ek-panel-body {
+    padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)) !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ── Leaderboard (Hall of Fame) on Mobile ── */
+  .ek-podium-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 14px !important;
+    margin-bottom: 20px !important;
+  }
+  .ek-podium-card {
+    order: initial !important;
+    margin-top: 0 !important;
+  }
+  .ek-podium-card--first {
+    order: -1 !important;
+  }
+  /* The list fits the screen instead of scrolling sideways at 540 px, its right end cut off (Kev, 2026-10-27: "at hall
+     of fame, the table is broken"; DEC-467): rank, creator, the count, the trend's number; the prompt count and the
+     trend's line give way. */
+  /* 58 px: the trend's number on one line up to "↑ +$1,000" (9 mono characters at 10.5 px; DEC-470). */
+  .ek-lb-row { grid-template-columns: 30px minmax(0, 1fr) auto 58px !important; }
+  .ek-lb-sub, .ek-lb-spark { display: none !important; }
+}
+
+/* ── Base Leaderboard styles ── */
+.ek-podium-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.25fr 1fr;
+  gap: 10px;
+  align-items: stretch;
+  margin-bottom: 26px;
+}
+.ek-leaderboard-table-wrap {
+  background: var(--enki-paper);
+  border: 1px solid var(--enki-rule);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+.ek-leaderboard-table-inner {
+  min-width: 0;
+}
+
+/* A message request's Delete beside Accept message (Kev, 2026-10-29: "just add a delete button, no decline button"):
+   the same size, outlined, so Accept stays the one filled. */
+.ek-msg-accept-actions { display: flex; gap: 8px; }
+.ek-msg-delete-btn { height: 36px; padding: 0 20px; border: 1px solid var(--enki-rule); border-radius: 999px; background: transparent; color: var(--enki-ink); font-size: 13px; font-weight: 600; cursor: pointer; }
+.ek-msg-delete-btn:disabled { opacity: 0.5; cursor: default; }
+

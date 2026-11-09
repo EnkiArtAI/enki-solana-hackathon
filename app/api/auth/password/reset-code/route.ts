@@ -1,0 +1,78 @@
+/**
+ * POST /api/auth/password/reset-code  { email, code, password } → session
+ *
+ * Redeems the emailed 7-digit code: sets the new password, evicts all old
+ * sessions, logs the user in. Brute force is boxed in by the per-email rate
+ * limit (5 tries / 15 min — a 7-digit code has 9M combinations) plus the
+ * 15-minute code TTL and one-live-code-per-user.
+ */
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { getSupabaseServerClient } from "@/lib/supabaseServer";
+import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
+import { completePasswordReset, sha256 } from "@/lib/password-reset";
+import { deletedRefusal, loginRefusal } from "@/lib/password-login";
+import { activeBanFor } from "@/lib/session-user";
+import { admitAllowlisted, grantGateCookie, revokeGateCookie } from "@/lib/allowlist";
+import { grantTrialCookie, trialSessionMs } from "@/lib/trial";
+
+const bodySchema = z.object({
+  email: z.string().email().max(320),
+  code: z.string().regex(/^\d{7}$/),
+  password: z.string().min(8).max(200),
+});
+
+export async function POST(req: NextRequest) {
+  const ipLimit = checkRequestRateLimit(rateLimitKey(req, "auth:resetcode:ip"), 20, 15 * 60 * 1000);
+  if (!ipLimit.allowed) return rateLimitResponse(ipLimit.retryAfterSeconds);
+
+  const parsed = bodySchema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+  const email = parsed.data.email.trim().toLowerCase();
+
+  // The binding brute-force guard: 5 attempts per email per window.
+  const emailLimit = checkRequestRateLimit(rateLimitKey(req, "auth:resetcode", email), 5, 15 * 60 * 1000);
+  if (!emailLimit.allowed) return rateLimitResponse(emailLimit.retryAfterSeconds);
+
+  const supabase = getSupabaseServerClient();
+  const { data: cred } = await supabase
+    .from("password_credentials")
+    .select("user_id")
+    .eq("email", email)
+    .maybeSingle();
+  if (!cred) return NextResponse.json({ error: "Wrong or expired code" }, { status: 400 });
+
+  const { data: row } = await supabase
+    .from("password_reset_tokens")
+    .select("token, user_id, expires_at")
+    .eq("user_id", cred.user_id)
+    .eq("token", sha256(parsed.data.code))
+    .maybeSingle();
+  if (!row || new Date(row.expires_at).getTime() <= Date.now()) {
+    return NextResponse.json({ error: "Wrong or expired code" }, { status: 400 });
+  }
+
+  const gone = await deletedRefusal(supabase, row.user_id, "Wrong or expired code", 400);
+  if (gone) return gone;
+
+  // It ends in a login: the same access list and network checks first, and
+  // the ban read now, so nothing that can fail runs after the password is set.
+  // Off the list, a tester's trial (a pass, or the account's running trial) lets the reset in too (review 2026-10-26).
+  const gate = await loginRefusal(req, supabase, email, row.user_id);
+  if (gate.refusal) return gate.refusal;
+  const banned = !!(await activeBanFor(supabase, row.user_id));
+
+  // One-shot: burn the code before setting the password.
+  await supabase.from("password_reset_tokens").delete().eq("user_id", cred.user_id);
+
+  // The code came through the inbox: the email is confirmed (Kev, 2026-10-07).
+  const trial = gate.trial;
+  const result = await completePasswordReset(supabase, row.user_id, parsed.data.password, { inboxProven: true, ipHash: gate.ipHash, ttlMs: trial ? trialSessionMs(trial) : undefined });
+  if ("error" in result) return NextResponse.json({ error: result.error }, { status: 500 });
+  // It passed the access list like a login: the account is a beta member; a trial is not one.
+  if (!banned && !trial) await admitAllowlisted(supabase, row.user_id);
+  // Enters like a login: the gate cookie, and /banned for a banned account.
+  const res = NextResponse.json({ ...result, ...(banned ? { banned: true } : {}) });
+  // A banned account loses the gate cookie, as at every login (BAN-1).
+  return banned ? revokeGateCookie(res) : trial ? grantTrialCookie(res, row.user_id, trial) : grantGateCookie(res, row.user_id, result.expiresAt);
+}

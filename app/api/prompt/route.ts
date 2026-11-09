@@ -1,0 +1,1109 @@
+import { NextResponse, after } from "next/server";
+import { ensureShowcaseRenditions } from "@/lib/generation/small-renditions";
+import { getSupabaseServerClient } from "@/lib/supabaseServer";
+import { encryptString, decryptString } from "@/lib/crypto";
+import { moderate, screenFirst, CLIENT_BLOCK_MESSAGE } from "@/lib/moderation";
+import { recordModerationEvent } from "@/lib/moderation-enforcement";
+import { checkPrompt, NOT_CHECKED, savedPromptInputs } from "@/lib/moderation/prompt-check";
+import { recordWarning, warningMessage } from "@/lib/moderation/warnings";
+import { showsAdultRender } from "@/lib/adult-content";
+import { resolveOwnerIds, resolveSessionUserId, resolveSessionUserWithBan } from "@/lib/session-user";
+import { isPublicText } from "@/lib/prompt-visibility";
+import { isRealTitle } from "@/lib/prompt-title";
+import { keepableImage, ownShowcaseImages } from "@/lib/generation/derivative-store";
+import { openPreview, type ImportPreview } from "@/lib/referral/preview-token";
+import { storeImportedPhotoSet } from "@/lib/referral/post-photos";
+import { snowflakeDate } from "@/lib/hunter/x-api";
+import { ownRenders } from "@/lib/generation/own-renders";
+import { checkImageBytes, dataUrlBytes, heldBack, NOT_AN_IMAGE } from "@/lib/moderation/image-check-bytes";
+import { recordImageCase } from "@/lib/moderation/image-case";
+import { casedImages, noteClearedPublish } from "@/lib/moderation/image-clearance";
+import { PHOTOS_REFUSED, PHOTOS_UNCHECKED } from "@/lib/referral/judge-post";
+import { extractTags, storedTags } from "@/lib/search/tags";
+import { isPaused } from "@/lib/moderation/prompt-pause";
+import { artistPayoutWallet } from "@/lib/payments/generation-quote";
+import { DEFAULT_PROMPT_PRICE_USD } from "@/shared/revenue-config";
+import { storedName } from "@/lib/generation/prompt-text";
+import { offeredModels } from "@/lib/offered-models";
+import { checkRequestRateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { requireActionStepUp } from "@/lib/webauthn";
+import { notifyFollowers } from "@/lib/notifications";
+import { allowsReferences, columnMissing } from "@/lib/prompt-references";
+import { slotCount } from "@/lib/ui/image-view/slots";
+import { toServerText } from "@/lib/editor/prompt-tokens";
+import { videoForSave } from "@/lib/video/release";
+
+type VariableType =
+  | "text"
+  | "checkbox"
+  | "image"
+  | "multi-select"
+  | "single-select"
+  | "slider";
+
+type PromptType = "showcase" | "free-prompt" | "paid-prompt" | string;
+
+/** The most reference images any model takes (Nano Banana 2: 14). */
+const REFERENCE_IMAGES_MAX = 14;
+const REFERENCES_NAMED = "its text names a reference image, so buyers keep adding theirs";
+const REFERENCES_NOT_KEPT = "the reference images setting is not saved yet, so it stays as it was";
+
+type PromptPayload = {
+  id?: string | null;
+  title: string;
+  content: string;
+  userId?: string | null;
+  category?: string;
+  aiModel?: string;
+  /** The generators the prompt offers, by catalogue name, the primary first (kept in ai_settings.models). */
+  aiModels?: string[];
+  price?: number;
+  aspectRatio?: string | null;
+  photoCount?: number;
+  promptType?: PromptType;
+  uploadedPhotos?: string[];
+  referenceImages?: string[];
+  resolution?: string | null;
+  isFreeShowcase?: boolean;
+  /** Buyers may add reference images (SQL 62): a premium prompt's switch; absent leaves the stored value. */
+  allowReferences?: boolean;
+  /** What it makes (SQL 52): "video" with showcaseVideoImageId, one render of the creator's own (lib/video/release). Absent: an image, or as stored. */
+  mediaType?: unknown;
+  showcaseVideoImageId?: unknown;
+};
+
+type VariableOption = {
+  visibleName?: string;
+  label?: string;
+  promptValue: string;
+};
+
+type VariablePayload = {
+  id?: string;
+  name: string;
+  label: string;
+  description?: string;
+  type: VariableType;
+  defaultValue: unknown;
+  options?: VariableOption[];
+  min?: number;
+  max?: number;
+  required?: boolean;
+  position: number;
+};
+
+type SaveBody = PromptPayload & {
+  variables?: VariablePayload[];
+  /** The artist releases the prompt: once this save has passed the checks it is listed for sale. */
+  release?: boolean;
+  /** A referred post, sealed by app/api/referrals/preview: its text and pictures are taken from there, never from this body. */
+  imported?: string;
+};
+
+function getErrorMessage(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (typeof e === "string") return e;
+  if (e && typeof e === "object") {
+    const obj = e as Record<string, unknown>;
+    // Supabase errors are plain objects with message/details/hint/code
+    const parts: string[] = [];
+    if (typeof obj.message === "string" && obj.message) parts.push(obj.message);
+    if (typeof obj.details === "string" && obj.details) parts.push(obj.details);
+    if (typeof obj.hint === "string" && obj.hint) parts.push(`hint: ${obj.hint}`);
+    if (typeof obj.code === "string" && obj.code) parts.push(`code: ${obj.code}`);
+    if (parts.length > 0) return parts.join(" — ");
+    try {
+      return JSON.stringify(e);
+    } catch {
+      return "[unserializable error]";
+    }
+  }
+  return String(e);
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value
+  );
+}
+
+/*
+ * ── Live-schema boundary (probed against the live DB, 2026-08-11) ─────────
+ *
+ * prompts columns are creator_id (uuid, NOT NULL), price_usd_cents (integer),
+ * encrypted_content / _iv / _tag / _kid, and showcase_images (jsonb array of
+ * URL strings). The columns this route used to write — user_id, price, iv,
+ * auth_tag, uploaded_photos, downloads, rating — do not exist (PostgREST 400
+ * on every one), which made every save fail with PGRST204. downloads/rating
+ * have no replacement anywhere live (prompt_engagement is a different
+ * concern), so they are simply not written. Photos live in
+ * prompts.showcase_images; the normalized prompt_showcase_images table also
+ * exists but requires storage_provider/storage_url per row, which the
+ * payload's plain URL strings don't carry.
+ *
+ * prompts_prompt_type_check accepts: create-now, showcase, free, paid
+ * (probed by insert; free-prompt/paid-prompt/free_prompt/paid_prompt/sell
+ * are all rejected), so the client's "free-prompt"/"paid-prompt"/
+ * "premium-prompt" are mapped at this boundary and mapped back on GET.
+ */
+const PROMPT_TYPE_TO_DB: Record<string, string> = {
+  "free-prompt": "free",
+  "paid-prompt": "paid",
+  "premium-prompt": "paid", // EnkiPromptEditor's name for a priced prompt
+};
+const PROMPT_TYPE_FROM_DB: Record<string, string> = {
+  free: "free-prompt",
+  paid: "paid-prompt",
+};
+
+/*
+ * Variables live in prompt_variables (the bare `variables` table does not
+ * exist — PostgREST 404). data_type is the enum variable_data_type:
+ * text, long_text, number, slider, checkbox, boolean, single_select,
+ * multi_select, radio, color, reference_image. The client's hyphenated
+ * types and "image" are not labels of it. Constraints (all probed):
+ *   chk_var_name_format      name ~ ^[a-z][a-z0-9_]*$ (empty rejected)
+ *   uq_var_name_per_prompt   name unique per prompt
+ *   chk_var_type_specific    slider needs min_value AND max_value;
+ *                            single/multi_select need options
+ */
+const VAR_TYPE_TO_DB: Record<string, string> = {
+  image: "reference_image",
+  "multi-select": "multi_select",
+  "single-select": "single_select",
+};
+const VAR_TYPE_FROM_DB: Record<string, string> = {
+  reference_image: "image",
+  multi_select: "multi-select",
+  single_select: "single-select",
+};
+const DB_VAR_TYPES = new Set([
+  "text",
+  "long_text",
+  "number",
+  "slider",
+  "checkbox",
+  "boolean",
+  "single_select",
+  "multi_select",
+  "radio",
+  "color",
+  "reference_image",
+]);
+
+function varTypeToDb(type: string): string {
+  if (VAR_TYPE_TO_DB[type]) return VAR_TYPE_TO_DB[type];
+  return DB_VAR_TYPES.has(type) ? type : "text";
+}
+
+// Editor variable names are free text (bracket tokens start out as name ""),
+// but chk_var_name_format demands ^[a-z][a-z0-9_]*$ and
+// uq_var_name_per_prompt demands uniqueness. Slug at the boundary instead of
+// failing the whole save; the display text travels in label/description,
+// which are stored verbatim.
+function toDbVarName(name: unknown, position: number, taken: Set<string>): string {
+  let slug = (typeof name === "string" ? name : "")
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  if (!/^[a-z]/.test(slug)) slug = slug ? `v_${slug}` : `var_${position}`;
+  let candidate = slug;
+  let i = 2;
+  while (taken.has(candidate)) candidate = `${slug}_${i++}`;
+  taken.add(candidate);
+  return candidate;
+}
+
+/* What a variable may carry: text in its name, label, description and
+   options; a text, number, yes/no or one flat list of those as its default.
+   The prompt check reads exactly these, one level deep, so anything nested
+   would be stored, shown and generated from without ever being judged. */
+// Never an image in text's clothes: a data: default would be shown publicly,
+// around both the showcase rule and the image check.
+const plain = (x: unknown) =>
+  x == null || ["number", "boolean"].includes(typeof x) || (typeof x === "string" && !/^\s*data:/i.test(x));
+const text = (x: unknown) => x == null || typeof x === "string";
+function isPlainVariable(v: VariablePayload): boolean {
+  return (
+    typeof v === "object" && v !== null && text(v.name) && text(v.label) && text(v.description) &&
+    (Array.isArray(v.defaultValue) ? v.defaultValue.every(plain) : plain(v.defaultValue)) &&
+    (v.options == null ||
+      (Array.isArray(v.options) && v.options.every((o) => typeof o === "object" && o !== null && text(o.visibleName) && text(o.label) && text(o.promptValue))))
+  );
+}
+
+// Resolve the prompt's creator from the session — NEVER from the client
+// (a client-supplied userId could claim any creator, and the payment quote
+// pays the artist share to that creator's wallet). prompts.creator_id is
+// NOT NULL on the live table, so anonymous saves are impossible: no session
+// means 401, not a NULL-creator row. First save from a wallet creates the
+// users row, same idiom as /api/auth/session.
+async function resolveCreatorId(
+  supabase: ReturnType<typeof getSupabaseServerClient>,
+  req: Request,
+): Promise<string | null> {
+  const token = req.headers.get("X-Session-Token");
+  if (!token) return null;
+
+  // Every session the rest of the app knows, bans honoured: an email login
+  // carries the users.id itself until a wallet is attached, and looking that
+  // up as a wallet address minted a second, empty user for it.
+  const known = await resolveSessionUserWithBan(supabase, token);
+  if (known.ban) return null;
+  if (known.userId) return known.userId;
+
+  const { data: session } = await supabase
+    .from("auth_sessions")
+    .select("wallet_address, wallet_type")
+    .eq("token", token)
+    .gt("expires_at", new Date().toISOString())
+    .maybeSingle();
+  if (!session) return null;
+
+  const { data: walletRow } = await supabase
+    .from("user_wallets")
+    .select("user_id")
+    .eq("address", session.wallet_address)
+    .is("removed_at", null)
+    .maybeSingle();
+  if (walletRow?.user_id) return walletRow.user_id;
+
+  // Previously looked the address up in turnkey_users to carry its casing over.
+  // Turnkey is gone, and the lookup above already covers every wallet we know
+  // about, so an unknown address just gets a bare user row.
+  const { data: created, error: createError } = await supabase
+    .from("users")
+    .insert({})
+    .select("id")
+    .single();
+  if (createError || !created?.id) {
+    console.error("[prompt] creator user insert failed:", createError?.message);
+    return null;
+  }
+  await supabase.from("user_wallets").insert({
+    user_id: created.id,
+    address: session.wallet_address,
+    chain_family: session.wallet_type === "evm" ? "evm" : "solana",
+    wallet_type: "external_eoa",
+    is_primary: true,
+  });
+  return created.id;
+}
+
+export async function POST(req: Request) {
+  // A listed prompt is off sale from its first write until its last one.
+  let offSale = false;
+  try {
+    const body = (await req.json()) as SaveBody;
+
+    if (!isRealTitle(body?.title)) {
+      return NextResponse.json({ error: "title is required" }, { status: 400 });
+    }
+    body.title = body.title.trim();
+
+    if (typeof body.content !== "string") {
+      return NextResponse.json({ error: "content is required" }, { status: 400 });
+    }
+
+    if (body.id && !isUuid(body.id)) {
+      return NextResponse.json({ error: "invalid id" }, { status: 400 });
+    }
+
+    /* A referred post (app/api/referrals/preview): its text, pictures and
+       18+ verdict come from the sealed preview the server made, never from
+       the client; the title, shelf and generator are the referrer's to pick
+       (Kev, 2026-10-14: "the prompt must not be editable"). Published at
+       once, free, as a new prompt of the account the preview was made for,
+       which is checked once that account is known below. */
+    const imported: ImportPreview | null = body.imported === undefined ? null : openPreview(body.imported);
+    if (body.imported !== undefined && !imported) {
+      return NextResponse.json({ error: "This import has expired. Paste the link again." }, { status: 400 });
+    }
+    if (imported) {
+      if (body.id) return NextResponse.json({ error: "An import is always a new prompt." }, { status: 400 });
+      body.content = imported.prompt;
+      body.uploadedPhotos = [];
+      body.referenceImages = [];
+      body.release = true;
+      body.promptType = "free-prompt";
+      body.price = 0;
+    }
+
+    // Stored and handed out with the prompt, so text only: it is judged with the rest.
+    if ([body.category, body.aspectRatio, body.resolution].some((x) => x != null && typeof x !== "string")) {
+      return NextResponse.json({ error: "category, aspectRatio and resolution must be text" }, { status: 400 });
+    }
+
+    const uploadedPhotos = Array.isArray(body.uploadedPhotos)
+      ? body.uploadedPhotos.filter((p): p is string => typeof p === "string")
+      : [];
+    // The images the prompt starts from, shown beside its showcase as the
+    // "before" (CUR-2). A client that sends none keeps what is stored.
+    const referenceImages = Array.isArray(body.referenceImages)
+      ? body.referenceImages.filter((p): p is string => typeof p === "string")
+      : null;
+
+    const supabase = getSupabaseServerClient();
+
+    // lib/crypto owns the keyring: the ciphertext carries the kid of the key
+    // that made it, so keys can rotate without re-encrypting old rows.
+    const enc = encryptString(body.content);
+
+    const nowIso = new Date().toISOString();
+
+    // creator_id deliberately absent here: updates never change the creator
+    // (re-saving used to null it), and inserts get the session-resolved
+    // creator below — body.userId is ignored entirely.
+    const clientPromptType = body.promptType ?? "create-now";
+    /* The model this prompt is made for is the one its creator picked. It
+       defaulted to "gemini", which is no catalogue row, and a re-save without
+       a model overwrote the creator's pick with it. Absent on an update now
+       leaves the stored value; absent on a new prompt is refused below. */
+    const aiModel = typeof body.aiModel === "string" ? body.aiModel.trim() : "";
+    /* The generators the prompt offers (Kev, 2026-10-13: a multi-select in
+       the editor; buyers pick among these). Catalogue names, each once, at
+       most 20, kept beside the other settings in ai_settings.models. Absent
+       leaves the stored list as it is. */
+    const aiModels = Array.isArray(body.aiModels)
+      ? [...new Set(body.aiModels.filter((m): m is string => typeof m === "string").map((m) => m.trim()).filter((m) => m && m.length <= 80))].slice(0, 20)
+      : null;
+    const dbPromptType = PROMPT_TYPE_TO_DB[clientPromptType] ?? clientPromptType;
+    const isFreeShowcase = Boolean(body.isFreeShowcase ?? false);
+    // A free prompt: its text is public and it has no price.
+    const publicText = isPublicText({ prompt_type: dbPromptType, is_free_showcase: isFreeShowcase });
+    // The body sends dollars (float); the column is integer cents.
+    // A free prompt is stored at 0 whatever was sent: the share card, the
+    // price filter and the card price read "free" from the cents alone.
+    const priceCents = publicText ? 0 : typeof body.price === "number" ? Math.round(body.price * 100) : Math.round(DEFAULT_PROMPT_PRICE_USD * 100);
+    if (!Number.isFinite(priceCents) || priceCents < 0) {
+      return NextResponse.json({ error: "The price must be zero or more." }, { status: 400 });
+    }
+    /* Every [slot] in the text must be a DEFINED variable WITH a value.
+       The showcase image is generated from those values, and a prompt whose
+       slots have none shows buyers raw brackets next to an image that
+       cannot have used them (Kev, 2026-08-24: "jede variable soll auch
+       einen wert haben der dann ja benutzt wurde um das angezeigte bild zu
+       generieren" — raw DB seeds proved the gap). Checked at SAVE, the one
+       door every prompt passes through. */
+    const varsPayload = Array.isArray(body.variables) ? body.variables : [];
+    if (!varsPayload.every(isPlainVariable)) {
+      return NextResponse.json(
+        { error: "A variable holds a value that cannot be saved: its name, label, description and options must be text, its default a text, a number, yes/no or a plain list of those." },
+        { status: 400 },
+      );
+    }
+    const slotNames = new Set(
+      Array.from(String(body.content ?? "").matchAll(/\[([^\]\n]+)\]/g), (m) => m[1].trim()),
+    );
+    if (slotNames.size > 0) {
+      const valueByName = new Map(
+        varsPayload.map((v) => [String(v.name ?? "").trim(), v.defaultValue]),
+      );
+      const missing = [...slotNames].filter((t) => {
+        if (!valueByName.has(t)) return true;
+        const dv = valueByName.get(t);
+        return dv == null || String(dv).trim() === "";
+      });
+      if (missing.length > 0) {
+        return NextResponse.json(
+          {
+            error:
+              `Every [slot] needs a variable with a value — missing or empty: ${missing.join(", ")}. ` +
+              "The showcase image is generated from these values, so none may be blank.",
+          },
+          { status: 422 },
+        );
+      }
+    }
+
+    /* No two variables under one stored name. Names are stored as slugs
+       ("Cat" and "cat" are both cat, "red car" and "red-car" both red_car); the
+       second would get a tie-break (cat_2) that no slot names, and every buyer
+       of the prompt would be refused as unmatched. Said here, where the artist
+       can still rename one. */
+    const storedAs = new Map<string, string>();
+    for (const v of varsPayload) {
+      const name = String(v.name ?? "").trim();
+      const stored = storedName(name);
+      if (!stored) continue;
+      const first = storedAs.get(stored);
+      if (first !== undefined) {
+        return NextResponse.json(
+          { error: `Two variables would be saved under one name: "${first}" and "${name}". Rename one of them. Nothing was saved.` },
+          { status: 422 },
+        );
+      }
+      storedAs.set(stored, name);
+    }
+
+    if (!body.id && !aiModel) {
+      return NextResponse.json({ error: "Pick the model this prompt is made for." }, { status: 400 });
+    }
+
+    // Who saves, before anything is judged: an anonymous or foreign save must
+    // neither cost a check nor earn anyone a warning. On an update the
+    // ownership is also part of the WHERE clause below — the service-role
+    // client bypasses RLS, so an unscoped update would let any caller
+    // overwrite any prompt by uuid (same IDOR as the PATCH route, PR #59).
+    // "not found" covers both a missing prompt and someone else's prompt (no
+    // ownership oracle).
+    let ownerIds: string[] = [];
+    let creatorId: string | null = null;
+    // The description is not part of this save (it is edited through the
+    // PATCH route) but is shown with the prompt, so an update judges it too.
+    let storedDescription: string | null = null;
+    let savedShowcase: string[] = [];
+    let savedBefore: string[] = [];
+    // The model is kept when a save sends none, and is handed out with a
+    // listed prompt like the description: judged with the rest as well.
+    let storedModel = "";
+    // The stored ai_settings, so a new offered-generators list keeps the rest of it.
+    let storedSettings: Record<string, unknown> = {};
+    // A release lists the prompt (Kev, 2026-10-05: the artist lists when they
+    // want, once the checks have passed). A first listing keeps its dates.
+    let listedSince: { listed_at?: unknown; published_at?: unknown } = {};
+    // What this save writes is for sale: it is released now, or is listed already.
+    let live = body.release === true;
+    // Whose prompt it is: a paid prompt's buyers pay this creator.
+    let payee: string;
+    // The content this save read. Every save stores a fresh IV, so a write
+    // that still finds this one lands on the prompt as it was read and
+    // judged, not on what another save put there meanwhile.
+    let readIv: string | null = null;
+    let wasListed = false;
+    if (body.id) {
+      const owners = await resolveOwnerIds(supabase, req.headers.get("X-Session-Token"));
+      if (!owners) {
+        return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+      }
+      // A session whose wallet maps to no user row owns no prompts, and
+      // .in() with an empty list is a PostgREST parse error, not a no-op.
+      if (owners.length === 0) return NextResponse.json({ error: "not found" }, { status: 404 });
+      const { data: own } = await supabase.from("prompts").select("id, creator_id, description, ai_model, ai_settings, encrypted_content_iv, is_listed, delisted_at, listed_at, published_at, showcase_images, showcase_before_images").eq("id", body.id).in("creator_id", owners).maybeSingle();
+      if (!own) return NextResponse.json({ error: "not found" }, { status: 404 });
+      // What a moderator took down stays down: releasing it again would undo the takedown.
+      if (body.release === true && own.delisted_at) {
+        return NextResponse.json({ error: "This prompt was taken down by a moderator and cannot be released again. Nothing was saved." }, { status: 403 });
+      }
+      // Off sale after a render was refused for its text, it waits for a moderator's decision (DEC-441).
+      if (body.release === true && (await isPaused(supabase, String(body.id)))) {
+        return NextResponse.json({ error: "This prompt is waiting for a moderator after a render was refused for its text, so it cannot be released yet. Nothing was saved." }, { status: 403 });
+      }
+      listedSince = own;
+      wasListed = own.is_listed === true;
+      live ||= wasListed;
+      payee = String(own.creator_id);
+      readIv = (own.encrypted_content_iv as string | null) ?? null;
+      storedDescription = (own.description as string | null) ?? null;
+      savedShowcase = Array.isArray(own.showcase_images) ? own.showcase_images.filter((u: unknown): u is string => typeof u === "string") : [];
+      savedBefore = Array.isArray(own.showcase_before_images) ? own.showcase_before_images.filter((u: unknown): u is string => typeof u === "string") : [];
+      storedModel = typeof own.ai_model === "string" ? own.ai_model : "";
+      if (own.ai_settings && typeof own.ai_settings === "object" && !Array.isArray(own.ai_settings)) storedSettings = own.ai_settings as Record<string, unknown>;
+      ownerIds = owners;
+      // MFA-4: taking a prompt public for the first time is a new listing,
+      // asked like a new prompt; every free render owns an unlisted draft a
+      // stolen session could otherwise release (review, 2026-10-16).
+      if (body.release === true && !wasListed) {
+        const blocked = await requireActionStepUp(req, payee, "publish", "add-prompt");
+        if (blocked) return blocked;
+      }
+    } else {
+      creatorId = await resolveCreatorId(supabase, req);
+      if (!creatorId) {
+        return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+      }
+      payee = creatorId;
+      /* MFA-4: a new prompt asks for the second factor once one is enrolled,
+         before any check is paid for, so a stolen session cannot publish
+         under the owner's name. The token stays good for its five minutes
+         (not a money scope): one confirmation covers a burst of releases, a
+         fair trade for an action the creator can undo. Edits are not asked,
+         and neither is a creator who switched it off in Settings. */
+      const blocked = await requireActionStepUp(req, creatorId, "publish", "add-prompt");
+      if (blocked) return blocked;
+    }
+    if (imported && imported.userId !== creatorId) {
+      return NextResponse.json({ error: "This import was made for another account." }, { status: 403 });
+    }
+    if (imported) {
+      storedDescription = `Imported from ${imported.source.url}${imported.source.handle ? ` by @${imported.source.handle}` : ""}`;
+    }
+    // Asked at every publish, whatever the sealed preview found when it was made, up to 14 days ago: a clearance taken back
+    // since, or a case filed since, holds its picture back (lib/moderation/image-clearance).
+    const cased = imported ? await casedImages(supabase, imported.photos.map((p) => p.sha256)) : null;
+    if (imported && !cased) return NextResponse.json({ error: PHOTOS_UNCHECKED }, { status: 503 });
+    if (cased?.held.length) return NextResponse.json({ error: PHOTOS_REFUSED }, { status: 422 });
+
+    // A video prompt shows one render of its creator's own, before any check is paid for. Its poster is what every picture
+    // surface shows (showcase_images), and it stands as a saved one: the render's own row carries its 18+ mark (thumbnail_url).
+    const video = await videoForSave(supabase, body, creatorId ? [creatorId] : ownerIds);
+    if (!video.ok) return NextResponse.json({ error: video.error, ...(video.run ? { run: video.run } : {}) }, { status: video.status });
+    if (video.files) {
+      uploadedPhotos.splice(0, uploadedPhotos.length, video.files.poster);
+      savedShowcase.push(video.files.poster);
+    }
+
+    // Every save below pays for checks, the prompt's and up to one per new
+    // reference image, so an account saves at most 20 a minute.
+    const limit = checkRequestRateLimit(`prompt-save:${payee}`, 20, 60_000);
+    if (!limit.allowed) return rateLimitResponse(limit.retryAfterSeconds);
+
+    // What is for sale must be sellable: it has a text, it is free or paid,
+    // and a paid one has a price. Asked before any check is paid for.
+    if (live) {
+      const unsellable = !body.content.trim()
+        ? "A prompt for sale needs its text."
+        : !publicText && dbPromptType !== "paid"
+          ? "A prompt for sale is either free or paid."
+          : // A price that was not sent is stored as the default for a draft; nothing
+            // goes or stays on sale at a price its artist never set.
+            !publicText && (typeof body.price !== "number" || priceCents < 1)
+            ? "A paid prompt for sale needs a price of at least $0.01."
+            : null;
+      if (unsellable) return NextResponse.json({ error: `${unsellable} Nothing was saved.` }, { status: 422 });
+      // A paid prompt's buyers pay the artist's share to the artist's Solana
+      // wallet, by the rule the quote applies. Without one every purchase
+      // would be refused at the quote: listed, and for sale to nobody.
+      if (!publicText) {
+        const payout = await artistPayoutWallet(supabase, payee);
+        if (!payout.ok) {
+          return payout.status === 422
+            ? NextResponse.json({ error: "A paid prompt for sale needs a Solana wallet on your account to be paid to: connect one, or link yours again. Nothing was saved." }, { status: 422 })
+            : NextResponse.json({ error: "This prompt could not be checked right now. Nothing was saved." }, { status: 503 });
+        }
+      }
+    }
+
+    // A showcase is the creator's own work on Enki, one of their recorded
+    // renders, until an image check runs on uploads (Kev, 2026-10-08). One the
+    // prompt already shows stays; anything else is refused by its number,
+    // before the check, so a refused save costs no call.
+    const newShowcase = uploadedPhotos.filter((url) => !savedShowcase.includes(url));
+    if (newShowcase.length > 0) {
+      const renders = await ownRenders(supabase, creatorId ? [creatorId] : ownerIds, newShowcase);
+      if (!renders) {
+        return NextResponse.json({ error: "This prompt could not be checked right now. Nothing was saved." }, { status: 503 });
+      }
+      const foreign = uploadedPhotos.findIndex((url) => !savedShowcase.includes(url) && !renders.has(url));
+      if (foreign >= 0) {
+        return NextResponse.json({ error: `Showcase image ${foreign + 1} must be one of your own renders on Enki. Nothing was saved.` }, { status: 422 });
+      }
+    }
+
+    // Reference images keep their places: "Reference image N" in the text is
+    // the N-th. One that cannot be kept is refused by its number, never
+    // dropped, and before the check, so a refused save costs no call.
+    if (referenceImages && referenceImages.length > REFERENCE_IMAGES_MAX) {
+      return NextResponse.json({ error: `At most ${REFERENCE_IMAGES_MAX} reference images can be saved. Nothing was saved.` }, { status: 422 });
+    }
+    const unkept = referenceImages ? referenceImages.findIndex((url) => !keepableImage(url, savedBefore)) : -1;
+    if (unkept >= 0) {
+      return NextResponse.json({ error: `Reference image ${unkept + 1} must be a PNG, JPEG or WebP image. Nothing was saved.` }, { status: 422 });
+    }
+
+    // Judged like a generation before it is stored, and whole: everything a
+    // saved prompt can put into an image or show a buyer — title, text,
+    // every variable's default and options. Explicit and child-safety text is
+    // refused with a warning; a suggestive prompt is marked 18+ by itself, as
+    // is one whose showcase images are 18+ renders, so the creator never has
+    // to (Kev, 2026-10-03). An outage of the check saves nothing rather than
+    // an unjudged prompt.
+    // Tags are ours, computed below from what is judged here; a creator
+    // sends none (Kev, 2026-10-07).
+    const judged = savedPromptInputs({ ...body, tags: [], description: storedDescription, aiModel: aiModel || storedModel });
+    // A record of a refused save shows what a buyer could see; the body is
+    // the artist's and is withheld from every moderator (lib/moderation/evidence).
+    const { content: artistText, ...shownInputs } = judged;
+    // The regex first: what Tier 1 refuses never reaches the chat model, and
+    // its refusal is this request's moderation verdict (Kev, 2026-10-06).
+    const first = screenFirst(judged);
+    // A find the Prompt Hunter publishes was judged once, at its import, and the admin approved it: no second check
+    // (Kev, 2026-11-01: "1x beim import reicht doch vollkommen ... aktuell mache ich das und kein mod"; a second one
+    // again once moderators approve finds: memory todo-second-prompt-check). Its 18+ is the import's. Only the hunter
+    // publishes under an imported creator's account (users.origin 'imported': nobody signs in to it); a person's
+    // referral carries a title and variables they wrote and is checked as every prompt is (review 2026-11-01).
+    const hunted = !!imported && !!creatorId && (await supabase.from("users").select("origin").eq("id", creatorId).maybeSingle()).data?.origin === "imported";
+    const check = first ? NOT_CHECKED : hunted ? NOT_CHECKED : await checkPrompt(judged, { hidden: false, signal: req.signal });
+    if (check.verdict === "minor_sexual" || check.verdict === "explicit_sexual") {
+      const outcome = await recordWarning(supabase, {
+        surface: "upload", request: req, category: check.verdict, text: JSON.stringify(shownInputs), withheld: artistText, confidence: check.confidence,
+      });
+      return NextResponse.json({ error: warningMessage(check.verdict, outcome, "save") }, { status: 422 });
+    }
+    if (check.verdict !== "clear") {
+      return NextResponse.json({ error: "This prompt could not be checked right now. Nothing was saved." }, { status: 503 });
+    }
+    // A reference image can be an 18+ render too, and it is shown as well.
+    const shownAdult = await showsAdultRender(supabase, [...uploadedPhotos, ...(referenceImages ?? savedBefore)]);
+    if (shownAdult === null) {
+      return NextResponse.json({ error: "This prompt could not be checked right now. Nothing was saved." }, { status: 503 });
+    }
+    // A new reference image is judged like any image (Kev, 2026-10-08),
+    // before anything is stored: one refused or not judged saves nothing, a
+    // child-safety one becomes a case an admin decides, an 18+ one marks the
+    // prompt 18+. Saved ones and our own renders were judged already.
+    const freshBefore = (referenceImages ?? []).filter((url) => url.startsWith("data:") && !savedBefore.includes(url));
+    const freshBytes = freshBefore.map((url) => dataUrlBytes(url));
+    const beforeSeen = await Promise.all(freshBytes.map((b) => (b ? checkImageBytes(b, { signal: req.signal }) : Promise.resolve({ verdict: "blocked" as const, reason: NOT_AN_IMAGE }))));
+    if (beforeSeen.some(heldBack)) {
+      beforeSeen.forEach((v, i) => {
+        const bytes = freshBytes[i];
+        if (v.verdict === "child_safety" && bytes) {
+          after(recordImageCase(supabase, { surface: "prompt-save", request: req, bytes, scores: v.scores, about: `Reference image of the prompt "${body.title}" being saved.` }));
+        }
+      });
+      return beforeSeen.some((v) => v.verdict === "blocked" || v.verdict === "child_safety")
+        ? NextResponse.json({ error: "One of your reference images can't be used on Enki. Nothing was saved." }, { status: 422 })
+        : NextResponse.json({ error: "Your reference images could not be checked right now. Nothing was saved." }, { status: 503 });
+    }
+    const adult = check.adult === true || shownAdult || beforeSeen.some((v) => v.verdict === "adult") || imported?.adult === true;
+
+    // Moderation. This route had none: a listed prompt is the one piece of
+    // user text we hand to a model on someone else's behalf AND show publicly
+    // (public_prompt_text is the first 220 characters, verbatim), so it is the
+    // most consequential thing on the platform to leave unfiltered.
+    //
+    // Before BOTH branches. Gating only the insert would leave editing an
+    // existing listing as the way round it — create something harmless, then
+    // change it.
+    //
+    // The full content is checked, not just the public excerpt: encryption at
+    // rest protects the artist's work from a database dump, it does not make
+    // the prompt safe to run.
+    // Tier 2 reads the same whole as the prompt check.
+    const moderatedText = Object.values(judged).join("\n");
+    if (moderatedText) {
+      const verdict = first ?? await moderate({ prompt: moderatedText, surface: "upload", signal: req.signal, adultJudged: true });
+      after(recordModerationEvent(verdict, { surface: "upload", request: req, prompt: Object.values(shownInputs).join("\n"), withheld: artistText }));
+      if (!verdict.allowed) {
+        return NextResponse.json({ error: CLIENT_BLOCK_MESSAGE }, { status: 422 });
+      }
+      // Tier 2 answers "allowed" when it is down. That is right for a draft,
+      // which is judged again when it is released, and wrong for what is or
+      // goes on sale: nothing reaches the marketplace on a check that never ran.
+      if (verdict.tier2Degraded && live) {
+        return NextResponse.json({ error: "This prompt could not be checked right now. Nothing was saved." }, { status: 503 });
+      }
+    }
+
+    // Stored only now, so a refused save leaves nothing behind.
+    const showcase = await ownShowcaseImages(uploadedPhotos, creatorId ?? ownerIds[0], savedShowcase);
+    if (!showcase) {
+      return NextResponse.json({ error: "Your showcase images could not be stored right now. Nothing was saved." }, { status: 503 });
+    }
+    // A referred post's pictures, the bytes the preview judged, as its showcase (Kev, 2026-10-14: "pulled into Image UI"),
+    // each with its WebP renditions, recorded as the creator's images once the prompt is written (below).
+    const importedSet = imported ? await storeImportedPhotoSet(imported.photos, creatorId ?? ownerIds[0]) : null;
+    const importedShowcase = importedSet?.map((p) => p.url) ?? null;
+    // The first picture's own shape, so cards show it whole instead of a 4:5 crop (Kev, 2026-10-31: "manche breiten bilder
+    // auf hochformat getrimmt").
+    const firstPhoto = importedSet?.[0];
+    const importedRatio = firstPhoto?.width && firstPhoto?.height ? `${firstPhoto.width}:${firstPhoto.height}` : null;
+    if (imported && !importedShowcase) {
+      return NextResponse.json({ error: "The post's images could not be stored right now, or the post changed. Import it again." }, { status: 503 });
+    }
+    const before = referenceImages === null ? savedBefore : await ownShowcaseImages(referenceImages, creatorId ?? ownerIds[0], savedBefore, REFERENCE_IMAGES_MAX);
+    if (!before) {
+      return NextResponse.json({ error: "Your reference images could not be stored right now. Nothing was saved." }, { status: 503 });
+    }
+    /* Search tags, ours alone (Kev, 2026-09-24: zero cost search; 2026-10-07:
+       automatic, private, no distilling). The vocabulary matcher runs HERE,
+       on the plaintext the client sent, before it is encrypted: only
+       canonical vocabulary tags reach prompts.tags, never a word of the body
+       itself. Title, variable names and option values, public on the prompt
+       page anyway, are matched in full but the how; the body is ranked and
+       sized, and a body whose text the viewer would not see (isPublicText,
+       the rule GET /api/prompts/[id] decrypts by) yields only what the piece
+       is and shows (lib/search/tags). Whatever the client sends as tags is
+       ignored. */
+    const variableText = varsPayload
+      .flatMap((v) => [
+        v.name,
+        v.label,
+        v.defaultValue,
+        ...(v.options ?? []).flatMap((o) => [o.visibleName, o.label, o.promptValue]),
+      ])
+      .filter((s): s is string => typeof s === "string")
+      .join("\n");
+    const searchTags = storedTags(
+      extractTags(body.content, { body: true, paid: !publicText }),
+      extractTags(`${body.title}\n${variableText}${imported ? "\n" + imported.tags.join("\n") : ""}`),
+    );
+
+    const promptRow = {
+      is_adult: adult,
+      title: body.title,
+      encrypted_content: enc.encrypted,
+      encrypted_content_iv: enc.iv,
+      encrypted_content_tag: enc.authTag,
+      encrypted_content_kid: enc.kid,
+      category: body.category ?? "",
+      tags: searchTags,
+      ...(aiModel ? { ai_model: aiModel } : {}),
+      ...(video.files ? { media_type: "video", showcase_video: video.files } : {}),
+      ...(aiModels ? { ai_settings: { ...storedSettings, models: aiModels } } : {}),
+      price_usd_cents: priceCents,
+      aspect_ratio: body.aspectRatio ?? importedRatio,
+      photo_count: typeof body.photoCount === "number" ? body.photoCount : 1,
+      prompt_type: dbPromptType,
+      showcase_images: importedShowcase ?? showcase,
+      showcase_before_images: before,
+      resolution: body.resolution ?? null,
+      is_free_showcase: isFreeShowcase,
+      // The first 220 characters, verbatim: only a free prompt may carry its
+      // text in the clear. A paid prompt's body is the artist's secret, and a
+      // draft's is nobody else's business.
+      public_prompt_text: publicText ? body.content.slice(0, 220) : null,
+      updated_at: nowIso,
+      /* Lineage (Kev, 2026-08-24): a prompt built via "put prompt to
+         editor" records its parent. The key is added only when a valid
+         uuid arrives, so saves without lineage never touch the column
+         (which lands with migrations/2026-08-24-prompt-provenance.sql). */
+      ...(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String((body as { derivedFrom?: unknown }).derivedFrom ?? ""))
+        ? { derived_from_prompt_id: String((body as { derivedFrom?: unknown }).derivedFrom) }
+        : {}),
+    };
+
+    let promptId: string;
+
+    if (body.id) {
+      promptId = body.id;
+
+      // Only onto the prompt as it was read. The rules above (for sale or
+      // not, sellable, tier 2) were decided on that read, and the checks took
+      // seconds: a second save of the same prompt may have been judged as a
+      // draft and would otherwise land on what this one lists, or the other
+      // way round. The description goes back as it was judged, so an edit of
+      // it that landed meanwhile cannot sit under a mark it was not part of.
+      const asRead = supabase
+        .from("prompts")
+        // Off sale in the same write that changes it; a listed prompt comes
+        // back with the last write below. Its new text is never for sale
+        // without its new variables, whatever fails in between.
+        .update({ ...promptRow, description: storedDescription, is_listed: false }, { count: "exact" })
+        .eq("id", promptId)
+        .in("creator_id", ownerIds);
+      const sameContent = readIv === null ? asRead.is("encrypted_content_iv", null) : asRead.eq("encrypted_content_iv", readIv);
+      // And the listing as it was read: another save's last write puts the
+      // prompt back on sale without changing the IV, so a save that read it
+      // in that gap would be judged as a draft and take it off sale for good.
+      const { error: updateError, count } = await (wasListed ? sameContent.is("is_listed", true) : sameContent.not("is_listed", "is", true));
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      if (count === 0) {
+        return NextResponse.json({ error: "This prompt was changed by another save while this one was being checked. Nothing was saved; save it again." }, { status: 409 });
+      }
+      offSale = wasListed;
+
+      const { error: deleteError } = await supabase
+        .from("prompt_variables")
+        .delete()
+        .eq("prompt_id", promptId);
+
+      if (deleteError) {
+        throw deleteError;
+      }
+    } else {
+      const { data: inserted, error: insertError } = await supabase
+        .from("prompts")
+        .insert({
+          ...promptRow,
+          creator_id: creatorId,
+          created_at: nowIso,
+          // Where a referred post came from, as its credit.
+          ...(imported ? { description: storedDescription } : {}),
+        })
+        .select("id")
+        .single();
+
+      if (insertError) {
+        throw insertError;
+      }
+
+      promptId = String(inserted?.id ?? "");
+      if (!promptId) {
+        throw new Error("Failed to create prompt");
+      }
+    }
+
+    const vars = varsPayload;
+
+    if (vars.length) {
+      const takenNames = new Set<string>();
+      const variableRows = vars.map((v) => {
+        const dbType = varTypeToDb(v.type);
+        return {
+          prompt_id: promptId,
+          name: toDbVarName(v.name, v.position, takenNames),
+          label: v.label,
+          description: v.description || "",
+          data_type: dbType,
+          default_value: v.defaultValue ?? null,
+          is_required: Boolean(v.required ?? false),
+          position: v.position,
+          // chk_var_type_specific: a slider row without both bounds is
+          // rejected outright, so absent bounds get the neutral 0..100.
+          min_value: v.min ?? (dbType === "slider" ? 0 : null),
+          max_value: v.max ?? (dbType === "slider" ? 100 : null),
+          options: v.options ?? null,
+          created_at: nowIso,
+          updated_at: nowIso,
+        };
+      });
+
+      const { error: varsError } = await supabase
+        .from("prompt_variables")
+        .insert(variableRows);
+
+      if (varsError) {
+        throw varsError;
+      }
+    }
+
+    /* Buyers' reference images (SQL 62). A free prompt always takes them; a text or value that names "Reference image k"
+       needs them, bare or bracketed, whatever was asked, and the answer says so. Its own write, before the listing so the prompt is never
+       for sale without it: until SQL 62 adds the column it fails alone, the prompt stands, and the answer says the
+       setting was not kept. A new prompt's default is on, and "on" is what today's code does without the column. */
+    const askedReferences = typeof body.allowReferences === "boolean" ? body.allowReferences : null;
+    const namesReference = slotCount(toServerText(`${body.content}\n${variableText}`)) > 0;
+    const allowReferences = publicText || namesReference ? true : askedReferences;
+    let referencesNote = askedReferences === false && !publicText && namesReference ? REFERENCES_NAMED : null;
+    if (allowReferences === false || (allowReferences && body.id)) {
+      const { error: referencesError } = await supabase.from("prompts").update({ allow_references: allowReferences })
+        .eq("id", promptId).eq("encrypted_content_iv", enc.iv);
+      if (referencesError && !(allowReferences && columnMissing(referencesError))) {
+        console.warn("[prompt] the reference images setting was not saved:", referencesError.message);
+        referencesNote = REFERENCES_NOT_KEPT;
+      }
+    }
+
+    if (cased?.cleared.length && !(await noteClearedPublish(supabase, cased.cleared, promptId))) {
+      return NextResponse.json({ error: PHOTOS_REFUSED }, { status: 422 });
+    }
+
+    // Listed last: after the prompt check and moderation let this very save
+    // through, and once the prompt and its variables are both written, so a
+    // save that fails halfway leaves nothing half-made for sale. A save
+    // without a release puts a listed prompt back on sale and lists nothing
+    // else. The takedown mark is part of the write itself: a moderator may
+    // take the prompt down between the ownership read above and here, and
+    // what is taken down stays down.
+    if (live) {
+      const { error: listError, count: nowListed } = await supabase
+        .from("prompts")
+        .update(
+          { is_listed: true, listing_status: "active", listed_at: listedSince.listed_at ?? nowIso, published_at: listedSince.published_at ?? nowIso },
+          { count: "exact" },
+        )
+        .eq("id", promptId)
+        // Still the content this very save wrote, not another save's.
+        .eq("encrypted_content_iv", enc.iv)
+        .is("delisted_at", null);
+      if (listError) throw listError;
+      if (nowListed === 0) {
+        const { data: now } = await supabase.from("prompts").select("delisted_at").eq("id", promptId).maybeSingle();
+        return now?.delisted_at
+          ? NextResponse.json({ error: "This prompt was taken down by a moderator and cannot be released again. Your changes were saved; it stays unlisted." }, { status: 403 })
+          : NextResponse.json({ error: "This prompt was changed by another save while it was being released, so it stays unlisted. Release it again." }, { status: 409 });
+      }
+      // Listed now and not before: its creator's followers with the bell on hear of it (DEC-512), never a re-save of a
+      // listed prompt; an 18+ prompt without its picture.
+      if (!wasListed) {
+        after(notifyFollowers(supabase, { actorUserId: payee, kind: "new_prompt", targetId: promptId, body: body.title, thumb: adult ? null : (importedShowcase ?? showcase)?.[0] }));
+      }
+    }
+
+    // Its examples' small renditions for the image view, after the answer (lib/generation/small-renditions).
+    after(() => ensureShowcaseRenditions(supabase, importedShowcase ?? showcase ?? []));
+    if (imported) {
+      // The referral itself: who sent the post in, and the prompt it became (the admin queue reads this).
+      // A post the Prompt Hunter queued has its row already, under the same account; publishing completes that one.
+      const { count: hunted, error: huntedError } = await supabase.from("hunt_submissions")
+        .update({ status: "approved", minted_prompt_id: promptId }, { count: "exact" })
+        .eq("normalized_source_url", imported.source.normalized).eq("hunter_user_id", creatorId).is("minted_prompt_id", null);
+      const { error: referralError } = hunted ? { error: huntedError } : await supabase.from("hunt_submissions").insert({
+        hunter_user_id: creatorId, source_url: imported.source.url, normalized_source_url: imported.source.normalized,
+        source_platform: "x", status: "approved", minted_prompt_id: promptId,
+        // The author: by X id, the vault's seed, and by handle for people (docs/ESCROW-V2-SHARES.md).
+        source_author_id: imported.source.authorId || null, source_author_handle: imported.source.handle || null,
+      });
+      if (referralError) console.warn("[prompt] referral not recorded:", referralError.message);
+      // The pictures as the creator's own Enki images (Kev, 2026-10-30: "ALLE bilder ... bei uns als image einfügen"):
+      // private, with their WebP renditions, so cards load thumbs (lib/marketplace/renditions finds them by storage_url).
+      // A failed insert costs the renditions, not the prompt.
+      // The post's own date, for sorting by release (Kev, 2026-10-31), from its X id. A separate write: before SQL 58
+      // adds the column it fails alone, and the prompt stands.
+      const postedAt = snowflakeDate(imported.source.normalized.match(/status\/(\d+)$/)?.[1] ?? "");
+      if (postedAt) {
+        const { error: dateError } = await supabase.from("prompts").update({ source_posted_at: postedAt.toISOString() }).eq("id", promptId);
+        if (dateError) console.warn("[prompt] the post's date was not recorded:", dateError.message);
+      }
+      if (importedSet?.length) {
+        const { error: imagesError } = await supabase.from("generated_images").insert(importedSet.map((p, i) => ({
+          user_id: creatorId, prompt_id: promptId, sequence_index: i, storage_provider: "vercel_blob", storage_url: p.url,
+          preview_url: p.previewUrl, thumbnail_url: p.thumbnailUrl, width: p.width, height: p.height, mime_type: p.mimeType,
+          file_size_bytes: p.bytes, is_uploaded: true, is_adult: imported.adult, is_watermarked: false, visibility: "private",
+          accepted: true, title: body.title, description: storedDescription,
+        })));
+        if (imagesError) console.warn("[prompt] imported images not recorded:", imagesError.message);
+      }
+    }
+
+    return NextResponse.json({
+      id: promptId,
+      title: body.title,
+      category: body.category ?? "",
+      tags: searchTags,
+      aiModel: aiModel || null,
+      price: publicText ? 0 : typeof body.price === "number" ? body.price : DEFAULT_PROMPT_PRICE_USD,
+      aspectRatio: body.aspectRatio ?? null,
+      photoCount: typeof body.photoCount === "number" ? body.photoCount : 1,
+      promptType: clientPromptType,
+      uploadedPhotos: showcase,
+      referenceImages: before,
+      resolution: body.resolution ?? null,
+      isFreeShowcase: Boolean(body.isFreeShowcase ?? false),
+      // The check marks a prompt 18+ by itself; its artist is told, since an
+      // 18+ prompt is shown only to viewers who may see 18+.
+      adult,
+      // Said to its artist with the release: the reference images switch did not land as asked.
+      referencesNote,
+    });
+  } catch (e: unknown) {
+    console.error("/api/prompt POST failed:", e);
+    return NextResponse.json(
+      { error: offSale ? "This prompt could not be saved completely and is off sale now. Release it again." : getErrorMessage(e) || "Failed to save prompt" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function GET(req: Request) {
+  try {
+    const url = new URL(req.url);
+    const id = url.searchParams.get("id");
+    if (!id) {
+      return NextResponse.json({ error: "id is required" }, { status: 400 });
+    }
+
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: "invalid id" }, { status: 400 });
+    }
+
+    const supabase = getSupabaseServerClient();
+
+    // Owner only: this returns the decrypted body, which is the creator's
+    // secret (a paid prompt's buyers see its variables, never its text). It
+    // answered anyone who knew an id, and listed ids are public.
+    const userId = await resolveSessionUserId(supabase, req.headers.get("X-Session-Token"));
+    if (!userId) {
+      return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+    }
+
+    const { data: prompt, error: promptError } = await supabase
+      .from("prompts")
+      .select(
+        "id,title,encrypted_content,encrypted_content_iv,encrypted_content_tag,encrypted_content_kid,creator_id,category,tags,ai_model,ai_settings,price_usd_cents,aspect_ratio,photo_count,prompt_type,showcase_images,showcase_before_images,resolution,is_free_showcase"
+      )
+      .eq("id", id)
+      .maybeSingle();
+
+    if (promptError) {
+      throw promptError;
+    }
+
+    // Someone else's prompt answers like a missing one: no decrypt, and no
+    // confirmation that the id exists. Ownership is also checked the way a
+    // save checks it (resolveOwnerIds): a prompt an email session saved before
+    // its wallet was attached is owned through that session's own mapping.
+    const owners =
+      prompt && prompt.creator_id !== userId ? ((await resolveOwnerIds(supabase, req.headers.get("X-Session-Token"))) ?? []) : [];
+    if (!prompt || (prompt.creator_id !== userId && !owners.includes(String(prompt.creator_id)))) {
+      return NextResponse.json({ error: "not found" }, { status: 404 });
+    }
+
+    const { data: variables, error: varsError } = await supabase
+      .from("prompt_variables")
+      .select(
+        "id,prompt_id,name,label,description,data_type,default_value,is_required,position,min_value,max_value,options"
+      )
+      .eq("prompt_id", id)
+      .order("position", { ascending: true });
+
+    if (varsError) {
+      throw varsError;
+    }
+
+    // The kid names the key that wrote the row; rows from before the keyring
+    // carry none and decryptString tries every key on the ring (the legacy
+    // prompt key included), which GCM's auth tag makes safe.
+    const content = decryptString({
+      encrypted: String(prompt.encrypted_content),
+      iv: String(prompt.encrypted_content_iv),
+      authTag: String(prompt.encrypted_content_tag),
+      kid: prompt.encrypted_content_kid
+        ? String(prompt.encrypted_content_kid)
+        : undefined,
+    });
+
+    const dbPromptType = (prompt.prompt_type as string | undefined) ?? "create-now";
+
+    return NextResponse.json({
+      id,
+      title: String(prompt.title ?? ""),
+      content,
+      userId: (prompt.creator_id as string | null | undefined) ?? null,
+      category: (prompt.category as string | undefined) ?? "",
+      tags: Array.isArray(prompt.tags) ? (prompt.tags as string[]) : [],
+      aiModel: (prompt.ai_model as string | undefined) ?? null,
+      aiModels: offeredModels(prompt.ai_settings),
+      price:
+        typeof prompt.price_usd_cents === "number"
+          ? prompt.price_usd_cents / 100
+          : DEFAULT_PROMPT_PRICE_USD,
+      aspectRatio: (prompt.aspect_ratio as string | null | undefined) ?? null,
+      photoCount: typeof prompt.photo_count === "number" ? prompt.photo_count : 1,
+      promptType: PROMPT_TYPE_FROM_DB[dbPromptType] ?? dbPromptType,
+      uploadedPhotos: Array.isArray(prompt.showcase_images)
+        ? (prompt.showcase_images as unknown[]).filter(
+            (p): p is string => typeof p === "string"
+          )
+        : [],
+      referenceImages: Array.isArray(prompt.showcase_before_images)
+        ? (prompt.showcase_before_images as unknown[]).filter(
+            (p): p is string => typeof p === "string"
+          )
+        : [],
+      resolution: (prompt.resolution as string | null | undefined) ?? null,
+      isFreeShowcase: Boolean(prompt.is_free_showcase ?? false),
+      allowReferences: await allowsReferences(supabase, id),
+      // Read on its own: before SQL 52 only this read fails, and every prompt is an image's.
+      mediaType: (await supabase.from("prompts").select("media_type").eq("id", id).maybeSingle()).data?.media_type === "video" ? "video" : "image",
+      variables: (Array.isArray(variables) ? variables : []).map((v) => {
+        const dbType = String(v.data_type ?? "text");
+        return {
+          id: typeof v.id === "string" ? v.id : undefined,
+          promptId: typeof v.prompt_id === "string" ? v.prompt_id : id,
+          name: String(v.name ?? ""),
+          label: String(v.label ?? ""),
+          description: typeof v.description === "string" ? v.description : "",
+          type: VAR_TYPE_FROM_DB[dbType] ?? dbType,
+          defaultValue: v.default_value ?? null,
+          required: Boolean(v.is_required ?? false),
+          position: typeof v.position === "number" ? v.position : 0,
+          min: typeof v.min_value === "number" ? v.min_value : null,
+          max: typeof v.max_value === "number" ? v.max_value : null,
+          options: v.options ?? null,
+        };
+      }),
+    });
+  } catch (e: unknown) {
+    return NextResponse.json(
+      { error: getErrorMessage(e) || "Failed to load prompt" },
+      { status: 500 }
+    );
+  }
+}

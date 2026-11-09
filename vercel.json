@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "crons": [
+    { "path": "/api/cron/sweep-payments", "schedule": "*/5 * * * *" },
+    { "path": "/api/cron/db-health", "schedule": "* * * * *" },
+    { "path": "/api/cron/video-jobs", "schedule": "* * * * *" },
+    { "path": "/api/cron/fee-payer", "schedule": "17 * * * *" },
+    { "path": "/api/cron/guardian-check", "schedule": "41 9 * * *" }
+  ]
+}

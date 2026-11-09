@@ -1,0 +1,252 @@
+/* ════════════════ Communities (Kev, 2026-10-30: "propose me something, that cant be duplicated and will work as a
+   harbour AND gallery for people interested in a community"; "in der community section müssen alle communities gleich
+   große senkrechte karten haben, von denen jeder ein bild bekommt") ════════════════
+   The directory, a community's page, the picker everywhere it sits, its dialogs and the merge queue. Enki's tokens only,
+   the kit's type (kit-label, kit-title), Studio's buttons, fields and dialogs (studio.css: st-btn, st-input, st-field,
+   StudioDialog); the phone is the shell's edge (767.98 px). */
+
+.cm-page { max-width: 1120px; }
+
+/* ── The directory: search on top, the sort, equal portrait cards ── */
+.cm-search {
+  display: flex; align-items: center; gap: 10px; height: 46px; margin: -4px 0 16px; padding: 0 16px;
+  border: 1px solid var(--enki-rule); border-radius: 999px; background: var(--enki-paper-2); color: var(--enki-ink-3);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.cm-search:focus-within { border-color: var(--enki-ember); box-shadow: 0 0 0 3px rgba(var(--ember-rgb), 0.13); }
+.cm-search input {
+  flex: 1; min-width: 0; height: 100%; border: 0; background: none; outline: none; color: var(--enki-ink);
+  font: 400 15px/1 var(--font-sans), sans-serif;
+}
+.cm-search input::placeholder { color: var(--enki-ink-3); }
+.cm-search input::-webkit-search-cancel-button { display: none; }
+.cm-search-x { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--enki-ink-3); cursor: pointer; }
+.cm-search-x:hover { color: var(--enki-ink); background: var(--enki-fill); }
+.cm-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.cm-bar .kit-label { white-space: nowrap; }
+
+.cm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: 14px; }
+/* Every card the same: the grid's width, 3:4 (Kev: "gleich große senkrechte karten"). */
+.cm-card, .cm-add {
+  position: relative; display: block; width: 100%; aspect-ratio: 3 / 4; min-width: 0; margin: 0; padding: 0;
+  border-radius: 16px; overflow: hidden; text-align: left; cursor: pointer;
+}
+.cm-card {
+  border: 0; background: var(--enki-paper-2); color: var(--enki-on-stage);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.cm-card:hover { transform: translateY(-4px); box-shadow: 0 16px 32px color-mix(in oklab, var(--enki-stage) 14%, transparent); }
+.cm-card-cover { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; }
+/* No cover yet: the handle's seal, large, on the paper. */
+.cm-card-seal { position: absolute; inset: 0; display: grid; place-items: center; padding-bottom: 30%; }
+.cm-card-seal > span { display: block; width: 52%; aspect-ratio: 1; border-radius: 50%; overflow: hidden; }
+.cm-card-foot {
+  position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; gap: 3px; padding: 48px 12px 12px;
+  background: linear-gradient(to top, color-mix(in oklab, var(--enki-stage) 86%, transparent), transparent);
+}
+.cm-card-name {
+  font-family: var(--font-serif), Georgia, serif; font-style: italic; font-size: 21px; line-height: 1.1;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere;
+}
+.cm-card-handle, .cm-card-meta { font: 500 11px/1.3 var(--font-mono), monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cm-card-handle { color: color-mix(in oklab, var(--enki-on-stage) 82%, transparent); }
+.cm-card-meta { color: color-mix(in oklab, var(--enki-on-stage) 66%, transparent); }
+.cm-new {
+  position: absolute; top: 10px; left: 10px; z-index: 1; display: inline-flex; align-items: center; height: 22px; padding: 0 9px;
+  border-radius: 999px; background: var(--enki-paper); color: var(--enki-ink); font: 600 10.5px/1 var(--font-sans), sans-serif;
+}
+/* "+ Create community" and "+ Create c/<typed>": a dashed card first, as Studio's "+ Create project" (DEC-558). */
+.cm-add {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 12px;
+  border: 1.5px dashed var(--enki-rule); background: none; color: var(--enki-ink-3); font-size: 13px; font-weight: 600; text-align: center;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.cm-add:hover { border-color: var(--enki-ember); color: var(--enki-ink); background: rgba(var(--ember-rgb), 0.05); }
+.cm-add-handle { font: 500 12px/1.3 var(--font-mono), monospace; overflow-wrap: anywhere; }
+.cm-sentinel { height: 1px; }
+.cm-more { display: flex; justify-content: center; margin-top: 18px; }
+
+/* ── A community's page ── */
+.cm-head { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 22px; align-items: start; margin-bottom: 22px; }
+.cm-head-cover { position: relative; aspect-ratio: 3 / 4; border-radius: 14px; overflow: hidden; background: var(--enki-paper-2); }
+.cm-head-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.cm-head-cover .cm-card-seal { padding: 0; }
+.cm-head-main { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.cm-head-name { margin: 0; font-size: 40px; font-style: italic; line-height: 1.05; overflow-wrap: anywhere; }
+.cm-head-handle { display: flex; align-items: center; gap: 6px; font: 500 12px/1 var(--font-mono), monospace; color: var(--enki-ink-3); }
+.cm-icon-btn {
+  display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0;
+  border: 0; border-radius: 50%; background: none; color: var(--enki-ink-3); cursor: pointer;
+}
+.cm-icon-btn:hover { background: var(--enki-fill); color: var(--enki-ink); }
+.cm-head-desc { margin: 2px 0 0; max-width: 620px; font-size: 13.5px; line-height: 1.55; color: var(--enki-ink-2); overflow-wrap: anywhere; }
+.cm-head-counts { margin: 0; font: 500 11.5px/1.4 var(--font-mono), monospace; color: var(--enki-ink-3); }
+.cm-head-acts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.cm-joined { color: var(--enki-ink-2); }
+.cm-unlisted { margin: 2px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--enki-ink-3); }
+/* The tabs' pages under the sticky switch (PanelTabs). */
+.cm-tab { padding-top: 22px; }
+.cm-tab-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+
+/* Showroom: posts, one under the other, their answers under each. */
+.cm-posts { display: flex; flex-direction: column; gap: 28px; max-width: 720px; }
+.cm-post { border: 1px solid var(--enki-rule); border-radius: 18px; overflow: hidden; background: var(--enki-paper); }
+.cm-post-pic { display: block; width: 100%; padding: 0; border: 0; background: var(--enki-paper-3); cursor: zoom-in; }
+.cm-post-pic img { display: block; max-width: 100%; max-height: 70vh; margin: 0 auto; object-fit: contain; }
+.cm-post-body { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px 16px; }
+.cm-post-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.cm-post-title { margin: 0; font-size: 17px; font-weight: 400; line-height: 1.3; overflow-wrap: anywhere; }
+.cm-post-caption { margin: 0; font-size: 13.5px; line-height: 1.55; color: var(--enki-ink-2); white-space: pre-wrap; overflow-wrap: anywhere; }
+.cm-post-caption[data-clamp] { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.cm-link { padding: 0; border: 0; background: none; color: var(--enki-ink-2); font-size: 12.5px; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.cm-link:hover { color: var(--enki-ink); }
+.cm-by { display: inline-flex; align-items: center; gap: 8px; min-width: 0; padding: 0; border: 0; background: none; color: var(--enki-ink); font-size: 13px; font-weight: 600; cursor: pointer; }
+.cm-by > span:first-child { flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; overflow: hidden; }
+.cm-by-when { font: 500 11px/1 var(--font-mono), monospace; color: var(--enki-ink-3); }
+.cm-post-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.cm-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.cm-chip {
+  display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 10px; border: 1px solid var(--enki-rule); border-radius: 999px;
+  background: var(--enki-paper); color: var(--enki-ink-2); font: 500 12px/1 var(--font-mono), monospace; white-space: nowrap; cursor: pointer;
+}
+.cm-chip:hover { border-color: var(--enki-ink-3); color: var(--enki-ink); }
+.cm-post-acts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cm-heart[aria-pressed="true"] svg { fill: var(--enki-ember); stroke: var(--enki-ember); }
+.cm-answers { display: flex; flex-direction: column; gap: 8px; padding: 12px 16px 14px; border-top: 1px solid var(--enki-rule-2); background: var(--enki-paper-2); }
+.cm-answers-row { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+.cm-answers-row::-webkit-scrollbar { display: none; }
+.cm-answer { flex-shrink: 0; width: 76px; aspect-ratio: 1; padding: 0; border: 0; border-radius: 10px; overflow: hidden; background: var(--enki-paper-3); cursor: zoom-in; }
+.cm-answer img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+/* Works: the renders as a wall, the content piece's look (.st-render). */
+.cm-works { columns: 4 200px; column-gap: 10px; }
+.cm-work { position: relative; display: block; width: 100%; margin: 0 0 10px; padding: 0; border: 0; border-radius: 12px; overflow: hidden; background: var(--enki-paper-3); cursor: zoom-in; break-inside: avoid; transition: transform 0.2s ease; }
+.cm-work:hover { transform: translateY(-3px); }
+.cm-work img { display: block; width: 100%; height: auto; }
+.cm-play {
+  position: absolute; top: 8px; left: 8px; display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%;
+  background: color-mix(in oklab, var(--enki-stage) 70%, transparent); color: var(--enki-on-stage);
+}
+.cm-feed { margin: 0 -8px; }
+
+/* Members. */
+.cm-members { display: flex; flex-direction: column; max-width: 560px; }
+.cm-member { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 6px; border: 0; border-bottom: 1px solid var(--enki-rule-2); background: none; color: var(--enki-ink); text-align: left; cursor: pointer; }
+.cm-member:hover { background: var(--enki-fill); }
+.cm-member > span:first-child { flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; overflow: hidden; }
+.cm-member-name { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cm-mark { flex-shrink: 0; height: 22px; padding: 0 9px; border-radius: 999px; background: var(--enki-fill); color: var(--enki-ink-2); font: 600 11px/22px var(--font-sans), sans-serif; }
+
+/* The viewer's panel on its stage (as Studio's .st-vpanel). */
+.cm-vpanel { display: flex; flex-direction: column; gap: 10px; color: var(--enki-on-stage); }
+.cm-vpanel-by { font-size: 13px; }
+
+/* ── The picker: chips, the field, the list under it, never floating ── */
+.cm-picker { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.cm-picker-box {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 44px; padding: 6px 8px;
+  border: 1px solid var(--enki-rule); border-radius: 14px; background: var(--enki-paper-2); cursor: text;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.cm-picker-box:focus-within { border-color: var(--enki-ember); box-shadow: 0 0 0 3px rgba(var(--ember-rgb), 0.13); }
+.cm-pick {
+  display: inline-flex; align-items: center; gap: 2px; max-width: 100%; height: 28px; padding: 0 2px 0 10px;
+  border: 1px solid var(--enki-rule); border-radius: 999px; background: var(--enki-paper); color: var(--enki-ink);
+  font: 500 12px/1 var(--font-mono), monospace;
+}
+.cm-pick > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cm-pick[data-inherited] { border-style: dashed; }
+.cm-pick-from { margin-left: 4px; font: 400 11px/1 var(--font-sans), sans-serif; color: var(--enki-ink-3); white-space: nowrap; }
+.cm-pick-x { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--enki-ink-3); cursor: pointer; }
+.cm-pick-x:hover { background: var(--enki-fill); color: var(--enki-ink); }
+.cm-picker-input { flex: 1; min-width: 110px; height: 30px; padding: 0 4px; border: 0; background: none; outline: none; color: var(--enki-ink); font: 400 14px/1 var(--font-sans), sans-serif; }
+.cm-picker-input::placeholder { color: var(--enki-ink-3); }
+.cm-picker-input:disabled { opacity: 0.5; cursor: not-allowed; }
+.cm-list { margin: 0; padding: 4px; list-style: none; border: 1px solid var(--enki-rule); border-radius: 12px; background: var(--enki-paper); max-height: 264px; overflow-y: auto; overscroll-behavior: contain; }
+.cm-row { display: flex; align-items: baseline; gap: 8px; min-width: 0; padding: 9px 10px; border-radius: 8px; color: var(--enki-ink); font-size: 13px; cursor: pointer; }
+.cm-row[aria-selected="true"] { background: var(--enki-fill); }
+.cm-row-handle { flex-shrink: 0; font: 500 12px/1.2 var(--font-mono), monospace; }
+.cm-row-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--enki-ink-2); }
+.cm-row-meta { flex-shrink: 0; margin-left: auto; font: 500 11px/1.2 var(--font-mono), monospace; color: var(--enki-ink-3); }
+.cm-row--create { font-weight: 600; }
+.cm-row--create .cm-row-handle { color: var(--enki-ember); }
+.cm-note { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--enki-ink-3); }
+.cm-err { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--enki-danger); }
+.cm-suggest { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; color: var(--enki-ink-3); }
+.cm-suggest .cm-chip { height: 24px; border-style: dashed; }
+
+/* The pill a surface carries (the editor's listing row, Create > Image's bar, Explore's filter) and its popover. */
+.cm-pill-n { font: 600 11px/1 var(--font-mono), monospace; }
+.cm-pop {
+  position: fixed; z-index: 230; display: flex; flex-direction: column; gap: 10px; width: min(380px, calc(100vw - 32px));
+  padding: 12px; border: 1px solid var(--enki-rule); border-radius: 16px; background: var(--enki-paper);
+  box-shadow: var(--enki-shadow-pop, 0 16px 40px rgba(0, 0, 0, 0.22)); animation: ek-dd-in 0.16s ease;
+}
+.cm-pop-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.cm-sheet { display: flex; flex-direction: column; gap: 10px; padding: 0 2px 8px; }
+/* Create > Image: "+" and the Communities pill share the bar's plus cell. */
+.feed-create-image .ci-plusrow { grid-area: plus; display: flex; align-items: center; gap: 8px; }
+.feed-create-image .ci-bar .ci-plusrow .kit-pill { --kit-pill-h: 40px; }
+.feed-create-image .ci-bar[data-phone] .ci-plusrow .kit-pill { --kit-pill-h: 36px; }
+/* Explore's Community filter: the feed's pill; once set it reads the handle as it is written, its × beside it. */
+.feed-pill.cm-explore-pill.on { text-transform: none; letter-spacing: 0; }
+.feed-pill.cm-explore-x { padding: 0 7px; }
+/* A render's ⋯ and its viewer: the item's communities. */
+.cm-links { display: flex; flex-direction: column; gap: 10px; padding: 4px 2px 6px; }
+.cm-links[data-dim] { opacity: 0.55; }
+.cm-links--stage { padding: 12px 0 0; border-top: 1px solid color-mix(in oklab, var(--enki-on-stage) 14%, transparent); }
+.cm-links--stage .kit-label, .cm-links--stage .cm-note { color: color-mix(in oklab, var(--enki-on-stage) 60%, transparent); }
+.cm-links--stage .cm-picker-box { background: color-mix(in oklab, var(--enki-on-stage) 8%, transparent); border-color: color-mix(in oklab, var(--enki-on-stage) 22%, transparent); }
+.cm-links--stage .cm-picker-input { color: var(--enki-on-stage); }
+.cm-links--stage .st-btn { border-color: color-mix(in oklab, var(--enki-on-stage) 22%, transparent); background: color-mix(in oklab, var(--enki-on-stage) 8%, transparent); color: var(--enki-on-stage); }
+
+/* ── The dialogs ── */
+.cm-closest { display: flex; flex-direction: column; gap: 6px; }
+.cm-closest-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--enki-rule); border-radius: 12px; }
+/* Its cover fills this frame (Cover draws absolutely): the frame is what it is placed in. */
+.cm-closest-row > span:first-child { position: relative; flex-shrink: 0; width: 34px; aspect-ratio: 3 / 4; border-radius: 6px; overflow: hidden; background: var(--enki-paper-3); }
+.cm-closest-row img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.cm-closest-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.cm-closest-text b { font: 600 12.5px/1.2 var(--font-mono), monospace; }
+.cm-closest-text small { color: var(--enki-ink-3); font-size: 11.5px; }
+.cm-handle-field { display: flex; align-items: center; }
+.cm-handle-field > span { padding: 0 2px 0 14px; font: 500 15px/1 var(--font-mono), monospace; color: var(--enki-ink-3); }
+.cm-handle-field { border: 1px solid var(--enki-rule); border-radius: 12px; background: var(--enki-paper-2); }
+.cm-handle-field:focus-within { border-color: var(--enki-ember); box-shadow: 0 0 0 3px rgba(var(--ember-rgb), 0.13); }
+.cm-handle-field .st-input { border: 0; background: none; box-shadow: none; padding-left: 2px; font-family: var(--font-mono), monospace; }
+.cm-render-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+.cm-render-tile { position: relative; aspect-ratio: 1; padding: 0; border: 0; border-radius: 12px; overflow: hidden; background: var(--enki-paper-3); cursor: pointer; }
+.cm-render-tile img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.cm-render-tile:disabled { cursor: default; opacity: 0.5; }
+.cm-render-tile[data-on] { box-shadow: 0 0 0 3px var(--enki-photo-ring); }
+.cm-render-tile .cm-new { top: 6px; left: 6px; }
+.cm-post-preview { display: block; max-width: 100%; max-height: 260px; margin: 0 auto; border-radius: 12px; object-fit: contain; background: var(--enki-paper-3); }
+.cm-check { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; line-height: 1.45; color: var(--enki-ink-2); cursor: pointer; }
+.cm-check input { flex-shrink: 0; width: 18px; height: 18px; margin: 1px 0 0; accent-color: var(--enki-ember); }
+
+/* ── The merge queue (admin) ── */
+.cm-merge { display: flex; flex-direction: column; gap: 18px; }
+.cm-merge-group { border: 1px solid var(--enki-rule); border-radius: 14px; overflow: hidden; background: var(--enki-paper); }
+.cm-merge-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 12px 14px; border-bottom: 1px solid var(--enki-rule-2); }
+.cm-merge-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.cm-merge-table th { padding: 8px 10px; text-align: left; font: 400 10px/1.2 var(--font-jetbrains-mono), ui-monospace, monospace; letter-spacing: 1px; text-transform: uppercase; color: var(--enki-ink-3); }
+.cm-merge-table td { padding: 8px 10px; border-top: 1px solid var(--enki-rule-2); color: var(--enki-ink); vertical-align: middle; }
+.cm-merge-table td:first-child { width: 36px; }
+.cm-merge-wrap { overflow-x: auto; }
+
+/* ── Phone ── */
+@media (max-width: 767.98px) {
+  .cm-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .cm-card-name { font-size: 18px; }
+  .cm-card-foot { padding: 40px 10px 10px; }
+  .cm-head { grid-template-columns: 88px minmax(0, 1fr); gap: 14px; }
+  .cm-head-name { font-size: 28px; }
+  .cm-works { columns: 2; }
+  .cm-search input { font-size: 16px; }
+  .cm-picker-input { font-size: 16px; }
+  .cm-feed { margin: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cm-card, .cm-work { transition: none; }
+  .cm-pop { animation: none; }
+}

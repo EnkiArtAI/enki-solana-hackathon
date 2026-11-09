@@ -1,0 +1,97 @@
+/**
+ * POST /api/auth/passkey/stepup/verify  { response, scope } → { token }
+ *
+ * Verifies the assertion against the cookie challenge + the stored credential,
+ * spends the challenge, bumps the signature counter, and mints a short-lived
+ * step-up token the sensitive endpoint checks (see requireStepUp). scope binds the
+ * token to the action it was issued for (e.g. "delete-work"), and must be the scope
+ * the challenge was issued for: one assertion is one token for one action.
+ */
+import { NextRequest, NextResponse } from "next/server";
+import { verifyAuthenticationResponse } from "@simplewebauthn/server";
+import type { AuthenticationResponseJSON } from "@simplewebauthn/server";
+import { z } from "zod";
+import { getSupabaseServerClient } from "@/lib/supabaseServer";
+import { resolveSessionUserWithBan } from "@/lib/session-user";
+import { rp, resolveStableUserId, readChallengeCookie, clearChallengeCookie, claimChallenge, mintStepUpToken, isStepUpScope, afterStepUp } from "@/lib/webauthn";
+
+const bodySchema = z.object({
+  response: z.record(z.string(), z.unknown()),
+  scope: z.string().refine(isStepUpScope),
+});
+
+export async function POST(req: NextRequest) {
+  // Ban tolerant: a ban locks the marketplace, never the wallet, and moving
+  // funds off a suspended account is a step-up too.
+  const { wallet: walletAddress } = await resolveSessionUserWithBan(getSupabaseServerClient(), req.headers.get("X-Session-Token"));
+  if (!walletAddress) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+
+  const parsed = bodySchema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+
+  const supabase = getSupabaseServerClient();
+  const userId = await resolveStableUserId(supabase, walletAddress);
+  if (!userId) return NextResponse.json({ error: "No user for session" }, { status: 404 });
+
+  const challenge = readChallengeCookie(req, "pk_auth_challenge", userId, parsed.data.scope);
+  if (!challenge) return NextResponse.json({ error: "Challenge expired — try again" }, { status: 400 });
+
+  const credentialId = (parsed.data.response as { id?: string }).id;
+  const { data: cred } = await supabase
+    .from("webauthn_credentials")
+    .select("credential_id, public_key, counter, transports")
+    .eq("user_id", userId)
+    .eq("credential_id", credentialId ?? "")
+    .maybeSingle();
+  if (!cred) return NextResponse.json({ error: "Unknown passkey" }, { status: 404 });
+
+  const { rpID, origin } = rp();
+  let verification;
+  try {
+    verification = await verifyAuthenticationResponse({
+      response: parsed.data.response as unknown as AuthenticationResponseJSON,
+      expectedChallenge: challenge,
+      expectedOrigin: origin,
+      expectedRPID: rpID,
+      requireUserVerification: true,
+      credential: {
+        id: cred.credential_id,
+        publicKey: new Uint8Array(Buffer.from(cred.public_key, "base64url")),
+        counter: Number(cred.counter),
+        transports: cred.transports ? JSON.parse(cred.transports) : undefined,
+      },
+    });
+  } catch {
+    return NextResponse.json({ error: "Passkey verification failed" }, { status: 400 });
+  }
+
+  const res0 = () => clearChallengeCookie(NextResponse.json({ error: "Passkey verification failed" }, { status: 400 }), "pk_auth_challenge");
+  if (!verification.verified) return res0();
+
+  // Before the unlock and the token. A failed assertion above spends nothing.
+  let spent: boolean;
+  try {
+    spent = await claimChallenge(supabase, challenge, userId, parsed.data.scope);
+  } catch (e) {
+    console.error("[passkey/stepup] challenge store failed:", e instanceof Error ? e.message : e);
+    return NextResponse.json({ error: "Could not verify security settings" }, { status: 503 });
+  }
+  if (!spent) return clearChallengeCookie(NextResponse.json({ error: "This confirmation was already used. Try again." }, { status: 400 }), "pk_auth_challenge");
+
+  // Advance the counter (clone/replay protection) and stamp last use.
+  await supabase
+    .from("webauthn_credentials")
+    .update({ counter: verification.authenticationInfo.newCounter, last_used_at: new Date().toISOString() })
+    .eq("user_id", userId)
+    .eq("credential_id", cred.credential_id);
+
+  try {
+    await afterStepUp(supabase, req.headers.get("X-Session-Token"), userId, parsed.data.scope);
+  } catch {
+    return NextResponse.json({ error: "Could not unlock the wallet, try again" }, { status: 503 });
+  }
+  const token = await mintStepUpToken(userId, parsed.data.scope, "passkey");
+  const res = NextResponse.json({ token });
+  clearChallengeCookie(res, "pk_auth_challenge");
+  return res;
+}

@@ -1,0 +1,17 @@
+/* ConfirmDialog: a small card over everything, dark or light. */
+.kit-confirm-scrim { position: fixed; inset: 0; z-index: 1300; background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; padding: 20px; }
+.kit-confirm {
+  width: 100%; max-width: 380px; padding: 22px 22px 18px;
+  background: var(--enki-paper); color: var(--enki-ink);
+  border: 1px solid var(--enki-rule); border-radius: 18px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+}
+.kit-confirm-title { margin: 0; font-family: var(--font-serif), Georgia, serif; font-style: italic; font-size: 22px; font-weight: 400; line-height: 1.15; letter-spacing: -0.02em; color: var(--enki-ink); }
+.kit-confirm-text { margin: 10px 0 0; font-size: 13.5px; line-height: 1.5; color: var(--enki-ink-2); }
+.kit-confirm-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.kit-confirm-btn {
+  min-height: 38px; padding: 0 16px; font-size: 13px; font-weight: 600; font-family: var(--font-sans);
+  border: 1px solid var(--enki-rule); border-radius: 999px; background: var(--enki-paper); color: var(--enki-ink); cursor: pointer;
+}
+.kit-confirm-btn:hover { background: color-mix(in oklab, var(--enki-ink) 6%, transparent); }
+.kit-confirm-btn--danger { background: var(--cta-solid); border-color: var(--cta-solid); color: var(--cta-ink); }
+.kit-confirm-btn--danger:hover { filter: none; background: var(--cta-hover); border-color: var(--cta-hover); }

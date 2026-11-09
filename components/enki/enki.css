@@ -1,0 +1,1757 @@
+.enki {
+  --enki-paper: #ffffff;
+  --enki-paper-2: #f6f5f4;
+  --enki-paper-3: #ecebe9;
+  --enki-ink: #111111;
+  --enki-ink-2: #3d3c3a;
+  --enki-ink-3: #6b6a67;
+  --enki-rule: #e3e2df;
+  --enki-rule-2: #efeeec;
+  --enki-ember: #7d1d33;
+  min-height: 100vh;
+  padding-top: 120px;
+  background: var(--enki-paper);
+  color: var(--enki-ink);
+  font-family: var(--font-sans);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.dark .enki {
+  /* Portion.io-inspired: midnight navy/teal base + gold accent. */
+  --enki-paper: #0a1825;
+  --enki-paper-2: #102433;
+  --enki-paper-3: #16303f;
+  --enki-ink: #e4edf1;
+  --enki-ink-2: #97aebb;
+  --enki-ink-3: #6a8493;
+  --enki-rule: #1e3849;
+  --enki-rule-2: #2a4658;
+  --enki-ember: #cba24a;
+}
+
+/* Purple variant of the feed palette (landing-page violet). */
+.dark.theme-purple .enki {
+  --enki-paper: #140e1f;
+  --enki-paper-2: #1c1330;
+  --enki-paper-3: #241a37;
+  --enki-ink: #ece8f5;
+  --enki-ink-2: #a99fc0;
+  --enki-ink-3: #7d7295;
+  --enki-rule: #2e2442;
+  --enki-rule-2: #3d3154;
+  --enki-ember: #a855f7;
+}
+
+.enki .serif {
+  font-family: var(--font-serif), Georgia, serif;
+}
+
+.enki .mono {
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+}
+
+.enki-page-title {
+  padding: 96px 40px 22px;
+  border-bottom: 1px solid var(--enki-rule);
+}
+
+.enki-page-eyebrow {
+  margin-bottom: 10px;
+  color: var(--enki-ink-3);
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.enki-page-h1 {
+  margin: 0;
+  color: var(--enki-ink);
+  font-family: var(--font-serif);
+  font-size: clamp(42px, 6vw, 76px);
+  font-weight: 400;
+  line-height: 0.98;
+  letter-spacing: 0;
+}
+
+.enki-page-lede {
+  max-width: 560px;
+  margin-top: 14px;
+  color: var(--enki-ink-2);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.enki-tabs {
+  display: none;
+}
+
+/* A press you can see around the profile's buttons (Kev, 2026-11-02): a ring on hover and focus, a give on press. */
+.pf-actions button {
+  transition: box-shadow 140ms ease, transform 90ms ease, opacity 140ms ease;
+}
+.pf-actions button:hover:not(:disabled),
+.pf-actions button:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--enki-ink) 16%, transparent);
+  outline: none;
+}
+.pf-actions button:active:not(:disabled) {
+  transform: scale(0.96);
+}
+.pf-actions button:disabled {
+  opacity: 0.55;
+  cursor: progress !important;
+}
+
+.enki-catbar-all {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 44px;
+  padding: 0 14px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: none;
+  color: rgba(0, 0, 0, 0.4);
+  font-family: var(--font-geist-sans), sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 150ms ease, border-color 150ms ease;
+  white-space: nowrap;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.dark .enki-catbar-all {
+  background: none;
+  border-color: transparent;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.enki-catbar-all:hover {
+  color: rgba(0, 0, 0, 0.8);
+}
+
+.dark .enki-catbar-all:hover {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.enki-catbar-all.active {
+  color: #111;
+  border-bottom-color: #111;
+  background: none;
+}
+
+.dark .enki-catbar-all.active {
+  color: rgba(255,255,255,0.9);
+  border-bottom-color: rgba(var(--ember-rgb), 0.8);
+  background: none;
+}
+
+.enki-catbar-all.active .enki-catbar-all-icon {
+  color: inherit;
+}
+
+.dark .enki-catbar-all.active .enki-catbar-all-icon {
+  color: inherit;
+}
+
+.enki-catbar-all-icon {
+  display: flex;
+  align-items: center;
+}
+
+/* On a phone a profile's walls (Released, Gallery, Likes) run edge to edge as Home's does, the content box's padding
+   (ProfileView, clamp(16px, 4vw, 40px)) given back; a wall without pictures keeps it (Kev, 2026-10-27: "rechts und
+   links und dazwischen ist außerdem zu viel rand"; DEC-457). */
+@media (max-width: 767.98px) {
+  .pf-wrap > :is(.feed-wall:has(.feed-grid), .gw:has(.gw-rows)) { width: auto; margin-inline: calc(-1 * clamp(16px, 4vw, 40px)); }
+}
+/* ─── Detail Modal (Full Screen) ─────────────────────── */
+.enki-detail-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 90px 20px 20px 20px;
+  overscroll-behavior: contain;
+}
+
+.enki-detail-card {
+  position: relative;
+  width: 100%;
+  max-width: 2100px;
+  height: calc(100vh - 110px);
+  background: #0a0a0a;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 24px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.enki-detail-close {
+  position: fixed;
+  top: 32px;
+  right: 40px;
+  z-index: 10;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.enki-detail-close:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: scale(1.05);
+}
+
+.enki-detail-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  padding: 32px 32px 0 32px;
+}
+
+/* Left Section (Settings) */
+.enki-detail-left {
+  width: 260px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  padding-right: 32px;
+  padding-bottom: 32px;
+  overflow-y: auto;
+  color: #fff;
+}
+
+.enki-detail-left h2 {
+  font-family: var(--font-instrument-serif), serif;
+  font-size: 32px;
+  line-height: 1.1;
+  font-weight: 400;
+  margin-bottom: 32px;
+  color: #fff;
+}
+
+.enki-detail-setting-group {
+  margin-bottom: 24px;
+}
+
+.enki-detail-setting-label {
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 8px;
+}
+
+.enki-detail-setting-value {
+  font-size: 14px;
+  color: #fff;
+  line-height: 1.5;
+}
+
+.enki-detail-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s;
+  margin-bottom: 8px;
+  justify-content: center;
+}
+.enki-detail-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Center Section (Dynamic Grid + Public Gallery) */
+.enki-detail-center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 0 40px 32px;
+  overflow-y: auto;
+}
+
+.enki-detail-grid-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  margin-bottom: 40px;
+}
+
+.enki-detail-dynamic-grid {
+  display: grid;
+  gap: 16px;
+  width: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  aspect-ratio: 1; /* Maintain square shape for the overall grid block */
+  margin: 0 auto;
+}
+
+.enki-detail-grid-item {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #000;
+  cursor: zoom-in;
+  will-change: transform;
+  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.enki-detail-grid-item:hover {
+  transform: scale(1.02);
+}
+
+.enki-detail-grid-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: opacity 0.2s;
+}
+
+.enki-detail-grid-item:hover img {
+  opacity: 0.9;
+}
+
+/* Right Section (History) */
+.enki-detail-right {
+  width: 140px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  padding-left: 24px;
+  padding-bottom: 32px;
+  overflow-y: auto;
+}
+
+.enki-detail-right-title {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 12px;
+}
+
+.enki-detail-thumb-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.enki-detail-thumb {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  object-fit: cover;
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 0.2s, border 0.2s;
+  border: 2px solid transparent;
+}
+
+.enki-detail-thumb:hover {
+  opacity: 0.8;
+}
+
+.enki-detail-thumb.active {
+  opacity: 1;
+  border-color: var(--enki-ember);
+}
+
+/* Public Gallery (Below Grid) */
+.enki-detail-public-section {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 12px;
+  margin-top: 12px;
+}
+
+.enki-detail-public-title {
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+
+.enki-detail-public-gallery {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding-bottom: 20px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.enki-detail-public-img {
+  width: 100px;
+  height: 100px;
+  border-radius: 8px;
+  object-fit: cover;
+  cursor: pointer;
+  opacity: 0.6;
+  border: 2px solid transparent;
+  transition: opacity 0.2s, border 0.2s;
+}
+.enki-detail-public-img:hover {
+  opacity: 0.9;
+}
+.enki-detail-public-img.active {
+  opacity: 1;
+  border-color: var(--enki-ember);
+}
+
+.enki-detail-bottom-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.enki-detail-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s;
+}
+
+.enki-detail-tab-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Lightbox overlay */
+.enki-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+
+.enki-lightbox img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.enki-lightbox-close {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  background: rgba(255,255,255,0.1);
+  border: 0;
+  color: #fff;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.enki-tag-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.enki-tag-pill {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(var(--ember-rgb), 0.3);
+  background: rgba(var(--ember-rgb), 0.1);
+  border-radius: 999px;
+  color: #c96838;
+  font-family: var(--font-jetbrains-mono), monospace;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+}
+
+.dark .enki-tag-pill {
+  background: rgba(var(--ember-rgb), 0.15);
+  color: #cba24a;
+  border: 1px solid rgba(var(--ember-rgb), 0.4);
+  box-shadow: 0 0 10px rgba(var(--ember-rgb), 0.1);
+}
+
+.enki-rule {
+  height: 1px;
+  background: var(--enki-rule);
+  margin: 22px 0;
+}
+
+.enki-prompt-text {
+  border-left: 2px solid var(--enki-ember);
+  background: var(--enki-paper-2);
+  color: var(--enki-ink-2);
+  font-size: 19px;
+  line-height: 1.65;
+  padding: 20px 22px;
+}
+
+.enki-var {
+  border-radius: 4px;
+  background: var(--cta-solid);
+  color: var(--cta-ink);
+  cursor: pointer;
+  padding: 1px 4px;
+}
+
+.enki-vars-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.enki-var-row {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--enki-rule);
+  background: var(--enki-paper-2);
+  padding: 12px;
+}
+
+.enki-var-row-input,
+.enki-comment-input {
+  width: 100%;
+  border: 1px solid var(--enki-rule);
+  background: var(--enki-paper);
+  color: var(--enki-ink);
+  padding: 8px 10px;
+}
+
+.enki-size-picker {
+  display: grid;
+  gap: 10px;
+}
+
+.enki-size-row {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+.enki-size-label {
+  width: 80px;
+  color: var(--enki-ink-3);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.enki-size-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.enki-size-chip {
+  border: 1px solid var(--enki-rule);
+  background: transparent;
+  color: var(--enki-ink-2);
+  cursor: pointer;
+  padding: 6px 9px;
+}
+
+.enki-size-chip.active {
+  background: var(--enki-ink);
+  color: var(--enki-paper);
+}
+
+.enki-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.enki-btn,
+.enki-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--enki-ink);
+  border-radius: 999px;
+  background: var(--enki-ink);
+  color: var(--enki-paper);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  min-height: 36px;
+  padding: 9px 16px;
+  text-decoration: none;
+}
+
+.enki-btn-secondary,
+.enki-icon-btn {
+  border-color: var(--enki-rule);
+  background: var(--enki-paper-2);
+  color: var(--enki-ink);
+}
+
+/* ─── Quick Create ─────────────────────────────────────── */
+.enki-qc {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  z-index: 70;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.enki-qc.is-open {
+  z-index: 100;
+}
+
+.enki-qc-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(12px);
+  z-index: 90;
+  animation: enki-fade-in 0.3s ease;
+}
+
+.enki-qc-panel-large {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 70vw;
+  height: 70vh;
+  min-width: 900px;
+  min-height: 600px;
+  background: #ffffff;
+  border-radius: 24px;
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.15);
+  z-index: 100;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  animation: enki-panel-slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.enki-qc-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.enki-qc-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.enki-qc-header-icon {
+  width: 32px;
+  height: 32px;
+  background: #ff5f38;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(255, 95, 56, 0.3);
+}
+
+.enki-qc-header-title {
+  font-family: var(--font-brand);
+  font-size: 20px;
+  font-weight: 600;
+  color: #000;
+}
+
+.enki-qc-collapse-btn {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  padding: 6px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #666;
+  transition: all 0.2s ease;
+}
+
+.enki-qc-collapse-btn:hover {
+  background: #f8f8f8;
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+.enki-qc-panel-content {
+  flex: 1;
+  background: #fdfcf9;
+  padding: 32px;
+  overflow-y: auto;
+}
+
+.enki-qc-main-grid {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 40px;
+}
+
+.enki-qc-section-label-ref {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #aaa;
+  margin-bottom: 12px;
+  display: block;
+}
+
+/* ─── Quick Create enki-previous (V3) ─────────────────── */
+
+.enki-qc-panel-v3 {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 75vw;
+  max-width: 1000px;
+  max-height: 95vh;
+  background: #fdfcf9;
+  border: 1px solid rgba(0,0,0,0.06);
+  border-radius: 4px;
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+  z-index: 1001;
+  animation: enki-qc-in-v3 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+
+@keyframes enki-qc-in-v3 {
+  from { opacity: 0; transform: translate(-50%, -48%) scale(0.99); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+.enki-qc-header-v3 {
+  padding: 10px 20px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.enki-qc-header-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.enki-qc-bolt-v3 {
+  width: 24px;
+  height: 24px;
+  background: #fbece6;
+  color: #ff5f38;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.enki-qc-header-title-v3 {
+  font-family: var(--font-brand);
+  font-size: 16px;
+  color: #111;
+}
+
+.enki-qc-header-hint-v3 {
+  font-size: 12px;
+  color: #aaa;
+  margin-left: 8px;
+}
+
+.enki-qc-grid-v3 {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  flex: 1;
+  overflow: hidden;
+}
+
+.enki-qc-col-left-v3 {
+  padding: 20px 24px;
+  border-right: 1px solid rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+}
+
+.enki-qc-col-right-v3 {
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  background: #fdfcf9;
+  height: 100%;
+}
+
+.enki-qc-label-v3 {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #aaa;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  display: block;
+}
+
+/* Prompt V3 */
+.enki-qc-prompt-area-v3 {
+  position: relative;
+  margin-bottom: 16px;
+}
+
+.enki-qc-textarea-v3 {
+  width: 100%;
+  min-height: 60px;
+  background: transparent;
+  border: none;
+  font-family: var(--font-brand);
+  font-size: 18px;
+  line-height: 1.3;
+  color: #111;
+  resize: none;
+  outline: none;
+  padding: 0;
+  position: relative;
+  z-index: 2;
+}
+
+.enki-qc-overlay-v3 {
+  position: absolute;
+  inset: 0;
+  font-family: var(--font-brand);
+  font-size: 18px;
+  line-height: 1.3;
+  color: transparent;
+  pointer-events: none;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  z-index: 1;
+}
+
+.enki-qc-var-chip-v3 {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #fff4f1;
+  color: #ff5f38;
+  border-radius: 4px;
+  font-size: 12px;
+  margin-right: 8px;
+  margin-top: 8px;
+}
+
+/* Row Selectors */
+.enki-qc-selectors-v3 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.enki-qc-selector-v3 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.enki-qc-selector-label-v3 {
+  font-size: 10px;
+  font-weight: 700;
+  color: #ccc;
+  text-transform: uppercase;
+}
+
+.enki-qc-selector-v3 select {
+  background: transparent;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: #444;
+  outline: none;
+  cursor: pointer;
+}
+
+/* Sources Smart Switcher V3 */
+.enki-qc-sources-v3 {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.enki-qc-source-toggle-v3 {
+  display: flex;
+  background: #f4f3f0;
+  padding: 2px;
+  border-radius: 6px;
+}
+
+.enki-qc-source-toggle-btn-v3 {
+  padding: 4px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 4px;
+  color: #888;
+  transition: all 0.2s;
+}
+
+.enki-qc-source-toggle-btn-v3.active {
+  background: #fff;
+  color: #ff5f38;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.enki-qc-source-assets-v3 {
+  display: flex;
+  gap: 8px;
+}
+
+.enki-qc-asset-slot-v3 {
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(0,0,0,0.05);
+  background: #fff;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ccc;
+}
+
+/* Variables List V3 */
+.enki-qc-vars-list-v3 {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.enki-qc-var-row-v3 {
+  display: flex;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.enki-qc-var-name-v3 {
+  width: 100px;
+  font-size: 13px;
+  color: #ff5f38;
+  opacity: 0.8;
+}
+
+.enki-qc-var-input-v3 {
+  flex: 1;
+  background: transparent;
+  border: none;
+  font-size: 13px;
+  color: #111;
+  outline: none;
+}
+
+.enki-qc-var-input-v3::placeholder {
+  color: #ddd;
+}
+
+.enki-qc-summary-v3 {
+  margin-top: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 12px;
+}
+
+.enki-qc-summary-text-v3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #111;
+}
+
+.enki-qc-network-v3 {
+  font-size: 10px;
+  color: #aaa;
+}
+
+.enki-qc-generate-btn-v3 {
+  width: 100%;
+  height: 48px;
+  background: #111;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.enki-qc-generate-btn-v3:hover {
+  background: #000;
+}
+
+/* Dark Mode Overrides V3 */
+.dark .enki-qc-panel-v3 { background: #121214; border-color: #222; }
+.dark .enki-qc-header-title-v3 { color: #fff; }
+.dark .enki-qc-col-right-v3 { background: #121214; }
+.dark .enki-qc-textarea-v3 { color: #fff; }
+.dark .enki-qc-var-input-v3 { color: #fff; }
+.dark .enki-qc-source-toggle-v3 { background: #1a1a1c; }
+.dark .enki-qc-source-toggle-btn-v3.active { background: #222; }
+.dark .enki-qc-asset-slot-v3 { background: #1a1a1c; border-color: #333; }
+.dark .enki-qc-summary-text-v3 { color: #fff; }
+.dark .enki-qc-selector-v3 select { color: #aaa; }
+
+/* Image count as a segmented row — four values, all visible, nothing to
+   open or scroll (Kev, 2026-08-22). */
+.enki-qc-qty-v3 { display: flex; gap: 4px; }
+.enki-qc-qty-btn-v3 { flex: 1 1 0; min-width: 0; padding: 4px 0; border: 1px solid var(--enki-rule, rgba(127,127,127,.3)); border-radius: 7px; background: transparent; color: inherit; font: inherit; font-size: 11.5px; cursor: pointer; }
+.enki-qc-qty-btn-v3:hover { border-color: var(--enki-ember, #c8542a); }
+.enki-qc-qty-btn-v3.on { background: var(--cta-bg, #e0a35c); color: var(--cta-ink, #1c1207); border-color: transparent; font-weight: 700; }
+
+.enki-qc-source-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.enki-qc-source-tab {
+  flex: 1;
+  padding: 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  background: #fcfcfc;
+  color: #888;
+  transition: all 0.2s ease;
+}
+
+.enki-qc-source-tab.active {
+  background: #ffffff;
+  border-color: #ff5f38;
+  color: #ff5f38;
+  box-shadow: 0 4px 12px rgba(255, 95, 56, 0.1);
+}
+
+.enki-qc-add-image-btn-ref {
+  width: 110px;
+  height: 110px;
+  border: 1px dashed rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: #fafafa;
+  flex-shrink: 0;
+}
+
+.enki-qc-settings-footer {
+  margin-top: auto;
+  padding-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.enki-qc-settings-label-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.enki-qc-settings-pills {
+  display: flex;
+  gap: 8px;
+}
+
+.enki-qc-setting-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  padding: 4px 10px;
+  border-radius: 8px;
+}
+
+.enki-qc-setting-pill select {
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  outline: none;
+  appearance: none;
+}
+
+.enki-qc-qty-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.enki-qc-qty-stepper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.enki-qc-qty-stepper button {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  color: #666;
+}
+
+.enki-qc-col-right {
+  padding: 40px;
+  background: #fafafa;
+  border-left: 1px solid rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+}
+
+.enki-qc-vars-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.enki-qc-var-add-btn {
+  font-size: 12px;
+  font-weight: 700;
+  color: #aaa;
+}
+
+.enki-qc-var-card {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
+}
+
+.enki-qc-var-card-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 800;
+  color: #ff5f38;
+  margin-bottom: 12px;
+}
+
+.enki-qc-var-card-input {
+  width: 100%;
+  background: #f8f8f8;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #666;
+  outline: none;
+}
+
+.enki-qc-var-card-input::placeholder {
+  color: #bbb;
+}
+
+.enki-qc-generate-bar-ref {
+  width: 100%;
+  background: #111111;
+  color: #ffffff;
+  padding: 24px;
+  font-size: 18px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.enki-qc-generate-bar-ref:hover {
+  background: #000;
+}
+
+.dark .enki-qc-panel-large { background: #121212; border-color: #222; }
+.dark .enki-qc-header-bar { background: #121212; border-color: #222; }
+.dark .enki-qc-header-title { color: #fff; }
+.dark .enki-qc-collapse-btn { background: #1a1a1a; border-color: #333; color: #888; }
+.dark .enki-qc-textarea-ref { background: #1a1a1a; border-color: #333; color: #ddd; }
+.dark .enki-qc-col-right { background: #0a0a0a; border-color: #222; }
+.dark .enki-qc-var-card { background: #1a1a1a; border-color: #333; }
+.dark .enki-qc-var-card-input { background: #121212; border-color: #222; color: #aaa; }
+.dark .enki-qc-setting-pill { background: #1a1a1a; border-color: #333; color: #fff; }
+.dark .enki-qc-qty-stepper button { background: #1a1a1a; border-color: #333; color: #fff; }
+.dark .enki-qc-source-tab { background: #1a1a1a; border-color: #333; color: #888; }
+.dark .enki-qc-source-tab.active { background: #222; border-color: #ff5f38; }
+
+@keyframes enki-panel-slide-up {
+  from { transform: translate(-50%, -40%); opacity: 0; }
+  to { transform: translate(-50%, -50%); opacity: 1; }
+}
+
+@keyframes enki-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.enki-qc-bar {
+  width: auto;
+  min-width: 400px;
+  max-width: 100%;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(64px) saturate(200%);
+  -webkit-backdrop-filter: blur(64px) saturate(200%);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  color: var(--enki-ink);
+
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 56px;
+  padding: 0 8px 0 24px;
+  transition: transform 0.25s ease, background 0.2s ease, box-shadow 0.25s ease;
+  white-space: nowrap;
+}
+
+.dark .enki-qc-bar {
+  background: rgba(19, 19, 24, 0.98);
+  border: 1px solid rgba(var(--ember-rgb), 0.4);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.8);
+  color: #fff;
+}
+
+.enki-qc-bar:hover {
+  transform: translateY(-2px) scale(1.01);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+}
+
+.dark .enki-qc-bar:hover {
+  background: rgba(19, 19, 24, 0.85);
+  box-shadow: 0 16px 48px rgba(var(--ember-rgb), 0.25), inset 0 0 20px rgba(var(--ember-rgb), 0.1);
+  border-color: rgba(var(--ember-rgb), 0.4);
+}
+
+.enki-qc-bar-bolt {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #c96838 0%, #ea580c 100%);
+  color: #fff;
+  flex-shrink: 0;
+  box-shadow: 0 0 16px rgba(var(--ember-rgb), 0.4);
+  margin-left: -12px;
+  position: relative;
+}
+
+.enki-qc-bar-bolt::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(168,85,247,0.3) 0%, rgba(168,85,247,0) 70%);
+  z-index: -1;
+  pointer-events: none;
+}
+
+.enki-qc-panel {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(64px) saturate(200%);
+  -webkit-backdrop-filter: blur(64px) saturate(200%);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  border-radius: 16px;
+  padding: 18px 24px 20px;
+  margin-bottom: 12px;
+  animation: qc-panel-in 0.18s ease;
+}
+
+.dark .enki-qc-panel {
+  background: rgba(19, 19, 24, 0.98);
+  border: 1px solid rgba(var(--ember-rgb), 0.4);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.8), inset 0 0 40px rgba(var(--ember-rgb), 0.05);
+}
+
+@keyframes qc-panel-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.enki-qc-editor-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 16px;
+  border: 1px solid rgba(0,0,0,0.1);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--enki-ink);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.dark .enki-qc-editor-btn {
+  border-color: rgba(255,255,255,0.15);
+  color: #fff;
+}
+
+.enki-qc-editor-btn:hover {
+  background: #111;
+  border-color: #111;
+  color: #fff;
+}
+
+.dark .enki-qc-editor-btn:hover {
+  background: rgba(255,255,255,0.1);
+  border-color: rgba(var(--ember-rgb), 0.4);
+  color: #c96838;
+}
+
+.enki-qc-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.04);
+  color: var(--enki-ink-2);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.dark .enki-qc-toggle-btn {
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.7);
+}
+
+.enki-qc-toggle-btn:hover {
+  background: rgba(0,0,0,0.08);
+  color: var(--enki-ink);
+}
+
+.dark .enki-qc-toggle-btn:hover {
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+}
+
+
+
+.enki-qc-section-label {
+  display: flex;
+  justify-content: center;
+  color: var(--enki-ink-3);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+
+.dark .enki-qc-section-label {
+  color: rgba(255,255,255,0.7);
+}
+
+.enki-qc-textarea,
+.enki-qc-var-input,
+.enki-qc-select {
+  width: 100%;
+  border: 1px solid var(--enki-rule);
+  background: var(--enki-paper);
+  color: var(--enki-ink);
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-family: var(--font-geist-sans), sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  transition: all 0.2s ease;
+}
+
+.dark .enki-qc-textarea,
+.dark .enki-qc-var-input,
+.dark .enki-qc-select {
+  background: rgba(0, 0, 0, 0.2);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.dark .enki-qc-textarea:focus,
+.dark .enki-qc-var-input:focus,
+.dark .enki-qc-select:focus {
+  border-color: rgba(var(--ember-rgb), 0.5);
+  box-shadow: 0 0 0 1px rgba(var(--ember-rgb), 0.5), inset 0 2px 4px rgba(0,0,0,0.2);
+  outline: none;
+}
+
+.enki-qc-textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.enki-qc-settings {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.enki-qc-vars {
+  display: grid;
+  gap: 8px;
+}
+
+.enki-empty-state,
+.enki-account {
+  padding: 28px 40px 90px;
+}
+
+.enki-account-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+@media (max-width: 900px) {
+  .enki-page-title {
+    padding: 78px 18px 18px;
+  }
+
+  .enki-filters,
+  .enki-qc-bar,
+  .enki-qc-panel,
+  .enki-empty-state,
+  .enki-account {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  .enki-tabs {
+    display: flex;
+    gap: 10px;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--enki-rule);
+  }
+
+  .enki-tabs a {
+    color: var(--enki-ink-3);
+    text-decoration: none;
+  }
+
+  .enki-tabs a.active {
+    color: var(--enki-ink);
+  }
+
+  .enki-panel {
+    width: 100vw;
+  }
+
+  .enki-panel-body {
+    padding: 22px 18px 86px;
+  }
+
+  .enki-qc-grid,
+  .enki-qc-settings,
+  .enki-account-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ─── Detail Panel: Mobile (≤ 900px) ─────────────────── */
+@media (max-width: 900px) {
+  .enki-detail-modal {
+    padding: 0;
+  }
+
+  .enki-detail-card {
+    max-width: 100vw !important;
+    height: 100vh;
+    height: 100dvh;
+    border-radius: 0;
+    border: none;
+  }
+
+  .enki-detail-close {
+    top: 12px;
+    right: 12px;
+    width: 36px;
+    height: 36px;
+    z-index: 20;
+  }
+
+  .enki-detail-body {
+    flex-direction: column;
+    padding: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Center grid comes FIRST on mobile */
+  .enki-detail-center {
+    order: 1;
+    padding: 52px 16px 16px;
+    flex: none;
+    overflow: visible;
+  }
+
+  .enki-detail-grid-container {
+    min-height: auto;
+    margin-bottom: 16px;
+  }
+
+  .enki-detail-dynamic-grid {
+    aspect-ratio: auto;
+    gap: 8px;
+  }
+
+  .enki-detail-grid-item {
+    border-radius: 8px;
+  }
+
+  /* Left settings below grid on mobile */
+  .enki-detail-left {
+    order: 2;
+    width: 100%;
+    border-right: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 20px 16px 24px;
+    overflow: visible;
+  }
+
+  .enki-detail-left h2 {
+    font-size: 24px;
+    margin-bottom: 20px;
+  }
+
+  .enki-detail-setting-group {
+    margin-bottom: 16px;
+  }
+
+  /* Hide right history on mobile */
+  .enki-detail-right {
+    display: none;
+  }
+
+  /* Community section */
+  .enki-detail-public-section {
+    padding-top: 10px;
+    margin-top: 10px;
+  }
+
+  .enki-detail-public-gallery {
+    gap: 10px;
+    padding-bottom: 14px;
+    margin-bottom: 14px;
+  }
+
+  .enki-detail-public-img {
+    width: 72px;
+    height: 72px;
+  }
+
+  .enki-detail-bottom-actions {
+    flex-direction: column;
+    gap: 8px;
+    align-items: stretch;
+  }
+
+  .enki-detail-bottom-actions > div {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .enki-detail-tab-btn {
+    width: 100%;
+    justify-content: center;
+    height: 44px;
+    font-size: 13px;
+  }
+
+  /* Quick Create on mobile */
+  .enki-qc {
+    width: calc(100% - 24px);
+    bottom: 12px;
+  }
+
+  .enki-qc-bar {
+    min-width: 0;
+    width: 100%;
+    height: 44px;
+    padding: 0 14px;
+    gap: 8px;
+    font-size: 13px;
+  }
+
+  .enki-qc-editor-btn {
+    font-size: 10px;
+    padding: 0 10px;
+    height: 26px;
+  }
+
+  .enki-qc-panel {
+    padding: 12px 14px;
+  }
+
+  .enki-qc-settings {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .enki-catbar-all {
+    padding: 0 10px;
+    font-size: 12px;
+    height: 34px;
+  }
+
+  /* Lightbox on mobile */
+  .enki-lightbox img {
+    max-width: 100vw;
+    max-height: 100vh;
+    object-fit: contain;
+  }
+}
+
+/* ─── Detail Panel: Tablet (769px – 1024px) ──────────── */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .enki-detail-modal {
+    padding: 10px;
+  }
+
+  .enki-detail-card {
+    max-width: 100% !important;
+    height: calc(100vh - 20px);
+    border-radius: 16px;
+  }
+
+  .enki-detail-body {
+    padding: 20px 20px 0 20px;
+  }
+
+  /* Left panel narrower */
+  .enki-detail-left {
+    width: 200px;
+    padding-right: 20px;
+  }
+
+  .enki-detail-left h2 {
+    font-size: 26px;
+    margin-bottom: 24px;
+  }
+
+  /* Center section less padding */
+  .enki-detail-center {
+    padding: 0 24px 24px;
+  }
+
+  /* Hide right history on tablet */
+  .enki-detail-right {
+    display: none;
+  }
+
+  .enki-detail-public-img {
+    width: 80px;
+    height: 80px;
+  }
+}
+
+/* ─── Detail Panel: Small Desktop (1025px – 1400px) ──── */
+@media (min-width: 1025px) and (max-width: 1400px) {
+  .enki-detail-left {
+    width: 220px;
+    padding-right: 24px;
+  }
+
+  .enki-detail-right {
+    width: 120px;
+    padding-left: 18px;
+  }
+}
+
+/* ── Boost toggle ─────────────────────────────────────────────────────────
+   Its styles now live in components/generation/boost-toggle.css, imported by
+   BoostToggle.tsx itself. Keeping them here meant they only reached surfaces
+   that happened to load this file, and the buyer's generator did not — the
+   control rendered there as an unstyled browser button. Do not re-add them. */
+
+/* The old .enki-quality pill rules are gone: QualitySelect now renders the
+   ratio-format trigger + panel and carries ratio-select.css itself
+   (Kev, 2026-08-24: "i want the format of e.g. ratio"). */
+

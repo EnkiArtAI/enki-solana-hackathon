@@ -1,0 +1,403 @@
+/* Kit controls (components/kit): pill menus and their sheets, segmented
+   controls, Generate, the cost line and the low-balance popover. Every
+   control imports this file itself (the boost-toggle.css pattern). Colours
+   are tokens only (plan §1.1). Layers follow the plan's z table: popovers
+   9000, bottom sheets 10000. */
+
+/* ── Pill trigger. A bar sets --kit-pill-h (34 px by default, 36 in the
+   editor bar) and every pill in it follows, Boost and Generate included. */
+.kit-menu { display: contents; }
+.kit-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  flex-shrink: 0;
+  height: var(--kit-pill-h, 34px);
+  padding: 0 11px;
+  border: 1px solid var(--enki-rule);
+  border-radius: 999px;
+  background: var(--enki-paper);
+  color: var(--enki-ink);
+  font: 400 13px/1 var(--font-sans), sans-serif;
+  letter-spacing: normal;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 0.14s;
+}
+.kit-pill:hover:not(:disabled),
+.kit-pill[aria-expanded="true"] { border-color: var(--enki-ink-2); }
+.kit-pill:disabled { opacity: 0.45; cursor: not-allowed; }
+.kit-caret { font-size: 10px; color: var(--enki-ink-3); }
+.kit-dot { width: 7px; height: 7px; flex-shrink: 0; border-radius: 50%; background: var(--enki-ember); }
+.kit-unset { color: var(--enki-ember); }
+
+/* ── Images per run: − ×N +, the ends grey instead of wrapping (handoff §5.11). */
+.kit-stepper {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  height: var(--kit-pill-h, 34px);
+  border: 1px solid var(--enki-rule);
+  border-radius: 999px;
+  background: var(--enki-paper);
+}
+.kit-stepper-btn { width: 32px; height: 100%; padding: 0; border: 0; background: transparent; color: var(--enki-ink); font-size: 17px; line-height: 1; cursor: pointer; }
+.kit-stepper-btn:disabled { color: var(--enki-rule); cursor: default; }
+.kit-stepper-n { min-width: 30px; font: 600 13.5px/1 var(--font-sans), sans-serif; text-align: center; color: var(--enki-ink); }
+
+/* ── Popover (≥ 1024 px). Fixed and portaled; PillMenu places it. */
+.kit-menu-panel {
+  z-index: 9000;
+  box-sizing: border-box;
+  min-width: 170px;
+  max-width: calc(100vw - 40px);
+  padding: 6px;
+  border: 1px solid var(--enki-rule);
+  border-radius: 12px;
+  background: var(--enki-paper);
+  color: var(--enki-ink);
+  box-shadow: var(--enki-shadow-pop);
+  overscroll-behavior: contain;
+}
+.kit-menu-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 10px 6px;
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--enki-label-quiet);
+}
+.kit-opts { display: grid; gap: 2px; }
+.kit-opts--2 { grid-template-columns: 1fr 1fr; min-width: 256px; }
+.kit-opt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--enki-ink);
+  font: 400 13px/1.3 var(--font-sans), sans-serif;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.kit-opt:hover:not(:disabled):not([aria-selected="true"]) { background: var(--enki-paper-3); }
+.kit-opt[aria-selected="true"] { background: var(--enki-ink); color: var(--enki-paper); }
+/* A multi-select menu: a box before each row, filled while the row is on. */
+.kit-check { flex-shrink: 0; width: 14px; height: 14px; border: 1.5px solid currentColor; border-radius: 4px; }
+.kit-opt[aria-selected="true"] .kit-check { background: currentColor; box-shadow: inset 0 0 0 2px var(--enki-ink); }
+.kit-opt:disabled { opacity: 0.45; cursor: not-allowed; }
+/* A row with a line under its label (opt-in: the Image View's settings, plan B4). */
+.kit-opt:has(.kit-opt-desc) { align-items: flex-start; padding: 8px 10px; border-radius: 9px; }
+/* The lines run long, so a described menu takes its 320 px maximum (handoff §5.11); in a narrow window the text keeps 190 px. */
+.kit-opt-text { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 190px; }
+.kit-opt-desc { font-size: 11.5px; line-height: 1.35; opacity: 0.72; white-space: normal; }
+.kit-opt-shape { display: flex; flex-shrink: 0; align-items: center; justify-content: center; width: 28px; height: 28px; }
+.kit-menu-panel:has(.kit-opt-desc) { min-width: 240px; max-width: min(320px, calc(100vw - 40px)); }
+.kit-opt-sub {
+  margin-left: auto;
+  padding-left: 12px;
+  font: 400 11.5px/1 var(--font-mono), monospace;
+  opacity: 0.7;
+}
+@media (pointer: coarse) {
+  .kit-opt { min-height: 44px; }
+}
+
+/* ── Bottom sheet (< 1024 px). Up in 280 ms, down in 260 ms. While it
+   closes the whole layer lets taps through, so a tap on the next pill
+   lands. The page behind is locked by lockScroll (no scrollbar flash). */
+.kit-sheet-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
+}
+.kit-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+  background: color-mix(in oklab, var(--enki-stage) 45%, transparent);
+  animation: kit-fade 180ms ease;
+}
+.kit-sheet {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  max-width: 560px;
+  max-height: 85dvh;
+  margin: 0 auto;
+  padding: 0 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--enki-rule);
+  border-radius: 22px 22px 0 0;
+  background: var(--enki-paper);
+  color: var(--enki-ink);
+  box-shadow: var(--enki-shadow-pop);
+  outline: none;
+  animation: kit-sheet-up 280ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.kit-sheet-grab {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  touch-action: none;
+  cursor: grab;
+}
+.kit-sheet-grab::before { content: ""; width: 40px; height: 4px; border-radius: 2px; background: var(--enki-rule); }
+.kit-sheet-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+.kit-sheet-title { font-family: var(--font-serif), Georgia, serif; font-style: italic; font-weight: 400; font-size: 22px; letter-spacing: -0.02em; color: var(--enki-ink); }
+.kit-sheet-hint { font-size: 12px; color: var(--enki-ink-3); text-align: right; }
+.kit-sheet-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.kit-sheet .kit-opt { min-height: 46px; padding: 0 12px; border-radius: 12px; font-size: 14px; }
+.kit-sheet .kit-opt:active:not(:disabled):not([aria-selected="true"]) { background: var(--enki-paper-3); }
+/* Every option at once, little to scroll (Kev, 2026-10-26: "ich will so wenig wie möglich scrollen müssen"): a described
+   row keeps its line to one line, the formats sit two to a row with two lines each, the counts four to a row. */
+.kit-sheet .kit-opts { grid-template-columns: minmax(0, 1fr); }
+.kit-sheet .kit-opt:has(.kit-opt-desc) { align-items: center; padding: 6px 12px; }
+.kit-sheet .kit-opt-text { min-width: 0; }
+.kit-sheet .kit-opt-desc { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.kit-sheet .kit-opts--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); min-width: 0; gap: 6px; }
+.kit-sheet .kit-opts--2 .kit-opt { padding: 8px 10px; border: 1px solid var(--enki-rule); }
+.kit-sheet .kit-opts--2 .kit-opt-desc { display: -webkit-box; white-space: normal; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.kit-opts.kit-opts--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.kit-opts--4 .kit-opt { flex-direction: column; justify-content: center; gap: 4px; min-height: 58px; padding: 6px 4px; border: 1px solid var(--enki-rule); text-align: center; }
+.kit-opts--4 .kit-opt-sub { margin: 0; padding: 0; }
+/* A number to type instead (the count): tap it, type, Done. */
+.kit-typed { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 8px; font-size: 13px; color: var(--enki-ink-2); }
+.kit-typed label { display: flex; align-items: center; gap: 10px; }
+.kit-typed-set { height: 40px; padding: 0 14px; border: 1px solid var(--enki-rule); border-radius: 10px; background: var(--enki-paper); color: var(--enki-ink); font: 600 13px/1 var(--font-sans), sans-serif; cursor: pointer; }
+.kit-typed input {
+  width: 72px;
+  height: 40px;
+  padding: 0 8px;
+  border: 1px solid var(--enki-rule);
+  border-radius: 10px;
+  background: var(--enki-paper-2);
+  color: var(--enki-ink);
+  font: 600 17px/1 var(--font-mono), monospace;
+  text-align: center;
+}
+.kit-typed input[aria-invalid="true"] { border-color: var(--enki-danger); }
+.kit-typed-why { flex-basis: 100%; font-size: 12px; color: var(--enki-danger); }
+.kit-sheet-layer.is-closing { pointer-events: none; }
+.kit-sheet-layer.is-closing .kit-sheet-backdrop { animation: kit-sheet-out 220ms ease forwards; }
+.kit-sheet-layer.is-closing .kit-sheet { animation: kit-sheet-down 260ms cubic-bezier(0.32, 0.72, 0, 1) forwards; }
+@keyframes kit-sheet-up { from { transform: translateY(100%); } }
+@keyframes kit-sheet-down { to { transform: translateY(100%); } }
+@keyframes kit-sheet-out { to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .kit-sheet-backdrop,
+  .kit-sheet { animation: kit-fade 120ms ease; }
+  .kit-sheet-layer.is-closing .kit-sheet-backdrop,
+  .kit-sheet-layer.is-closing .kit-sheet { animation: kit-sheet-out 120ms ease forwards; }
+}
+
+/* ── Segmented control. Each button is its own pill, so on a touch screen
+   its hit area can grow upwards and downwards without being clipped and
+   without reaching into its neighbour. */
+.kit-seg { display: inline-flex; border: 1px solid var(--enki-rule); border-radius: 999px; }
+.kit-seg-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: var(--kit-seg-h, 32px);
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--enki-ink-2);
+  font: 500 12.5px/1 var(--font-sans), sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.kit-seg-btn[aria-checked="true"],
+.kit-seg-btn[aria-selected="true"] { background: var(--enki-ink); color: var(--enki-paper); }
+/* A choice not offered yet: greyed, not clickable (Kev, 2026-11-08: Video in Create prompt). */
+.kit-seg-btn:disabled { color: var(--enki-label-quiet); cursor: not-allowed; }
+/* Slide: equal-width choices under one thumb that glides to the chosen one,
+   like a switch (Kev, 2026-10-13: Open | Premium). */
+.kit-seg--slide { position: relative; isolation: isolate; display: inline-grid; grid-auto-flow: column; grid-auto-columns: 1fr; }
+.kit-seg--slide::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: -1;
+  width: calc(100% / var(--kit-seg-n, 2));
+  border-radius: 999px;
+  background: var(--enki-ink);
+  transform: translateX(calc(var(--kit-seg-i, 0) * 100%));
+  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.kit-seg--slide .kit-seg-btn { padding: 0 16px; transition: color 0.18s; }
+.kit-seg--slide .kit-seg-btn[aria-checked="true"],
+.kit-seg--slide .kit-seg-btn[aria-selected="true"] { background: transparent; }
+/* Soft (Kev, 2026-11-08, the Settings mock v64: its area bar and small pills,
+   Main.dc.html:111-115, 148-152): the chosen one on paper over a quiet track,
+   its label in ink, the others in the quiet label tone, all at 600. The track
+   is the small pills' (3 px in); a bar sets its own background and
+   --kit-seg-pad. A choice not offered yet dims: its colour is the idle one's. */
+.kit-seg[data-tone="soft"] { padding: var(--kit-seg-pad, 3px); border: 0; background: var(--enki-fill-hover); }
+.kit-seg[data-tone="soft"] .kit-seg-btn { color: var(--enki-label-quiet); font-weight: 600; }
+.kit-seg[data-tone="soft"] .kit-seg-btn[aria-checked="true"],
+.kit-seg[data-tone="soft"] .kit-seg-btn[aria-selected="true"] { color: var(--enki-ink); }
+.kit-seg[data-tone="soft"]:not(.kit-seg--slide) .kit-seg-btn[aria-checked="true"],
+.kit-seg[data-tone="soft"]:not(.kit-seg--slide) .kit-seg-btn[aria-selected="true"] { background: var(--enki-paper); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14); }
+.kit-seg--slide[data-tone="soft"]::before {
+  top: var(--kit-seg-pad, 3px);
+  bottom: var(--kit-seg-pad, 3px);
+  left: var(--kit-seg-pad, 3px);
+  width: calc((100% - 2 * var(--kit-seg-pad, 3px)) / var(--kit-seg-n, 2));
+  background: var(--enki-paper);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14);
+}
+.kit-seg[data-tone="soft"] .kit-seg-btn:disabled { opacity: 0.45; }
+@media (prefers-reduced-motion: reduce) {
+  .kit-seg--slide::before, .kit-seg--slide .kit-seg-btn { transition: none; }
+}
+@media (pointer: coarse) {
+  .kit-seg-btn { position: relative; }
+  .kit-seg-btn::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: max(100%, 44px);
+    transform: translateY(-50%);
+  }
+}
+
+/* ── Generate. The label is centred and the price chip sits on the right,
+   inset so it is always the button's height minus a margin. Dimmed still
+   takes the click (the surface explains why), so it never lifts. One look on
+   every surface, whatever its size (Kev, 2026-10-30: "die preisanzeige und
+   generate button aussehen sollte überall gleich sein ... rechteckig with
+   abgerundeten ecken AND with ... bright rosa aka schon fast weiss and
+   bordeaux"): a rounded rectangle, the price on a near-white rose in ember. */
+.kit-gen {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 12px;
+  background: var(--cta-bg);
+  color: var(--cta-ink);
+  font: 500 14.5px/1 var(--font-sans), sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform 0.14s;
+}
+.kit-gen--bar { flex: 1 1 170px; min-width: 170px; height: var(--kit-pill-h, 34px); padding: 0 66px; font-size: 14px; }
+.kit-gen--block { width: 100%; height: 44px; padding: 0 72px; }
+/* The Image View's (handoff §5.13): its phone page makes it 58 high and full width. */
+.kit-gen--hero {
+  width: 400px;
+  max-width: 100%;
+  height: 64px;
+  padding: 0 90px;
+  border-radius: 16px;
+  font-size: 18px;
+  font-weight: 600;
+  box-shadow: 0 6px 18px color-mix(in oklab, var(--enki-ember) 32%, transparent);
+}
+.kit-gen--hero .kit-gen-chip { top: 9px; right: 9px; bottom: 9px; padding: 0 14px; font-size: 15px; }
+.kit-gen--hero[data-short] { padding: 0 9px 0 22px; box-shadow: none; }
+.kit-gen:hover:not([aria-disabled="true"]) { transform: translateY(-1px); }
+.kit-gen:active:not([aria-disabled="true"]) { transform: scale(0.98); }
+/* Cannot go yet: a shade darker, still the button (Kev, 2026-10-14), not a see-through one. Only its ground darkens:
+   the price keeps its rose (a filter greyed it, 2026-10-30). --cta-bg is a colour or a gradient, either a last layer. */
+.kit-gen[aria-disabled="true"] { background: linear-gradient(rgb(0 0 0 / 0.3), rgb(0 0 0 / 0.3)), var(--cta-bg); cursor: not-allowed; }
+/* On dark's gold the shade takes a dark label under 4.5; white reads on it, and purple's label is white already. */
+.dark .kit-gen[aria-disabled="true"] { color: #fff; }
+.kit-gen-chip {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  bottom: 6px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border-radius: 7px;
+  background: color-mix(in oklab, var(--enki-ember) 7%, var(--enki-paper));
+  color: var(--enki-ember);
+  font: 600 12.5px/1 var(--font-mono), monospace;
+}
+.kit-gen--bar .kit-gen-chip { top: 5px; right: 5px; bottom: 5px; padding: 0 10px; border-radius: 6px; font-size: 12px; }
+.kit-gen-chip[data-pending] { animation: kit-pulse 1.2s ease-in-out infinite; }
+/* A short balance: the button turns red and carries the balance beside the
+   price; its press opens Add funds (Kev, 2026-10-13). The chip leaves its
+   inset for the row's end so the two figures never run under the label. */
+.kit-gen[data-short] { justify-content: space-between; gap: 10px; padding: 0 5px 0 16px; background: var(--enki-danger); color: var(--enki-danger-ink); }
+.kit-gen--block[data-short] { padding: 0 6px 0 18px; }
+.kit-gen[data-short] .kit-gen-chip { position: static; padding: 6px 10px; }
+/* Short: the label takes the room left of the balance and stands in its middle (Kev, 2026-11-08). */
+.kit-gen-label { flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; }
+.kit-gen-short { margin-right: 8px; padding-right: 8px; border-right: 1px solid color-mix(in oklab, currentColor 30%, transparent); color: var(--enki-danger); }
+@media (max-width: 1023.98px) {
+  .kit-gen--block { height: 48px; font-size: 15px; }
+  .kit-gen--block .kit-gen-chip { top: 8px; right: 8px; bottom: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kit-gen { transition: none; }
+  .kit-gen:hover:not([aria-disabled="true"]) { transform: none; }
+  .kit-gen-chip[data-pending] { animation: none; opacity: 0.6; }
+}
+
+/* ── Cost line and balance. */
+.kit-cost {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 10px;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--enki-ink-3);
+}
+.kit-cost-left { min-width: 0; text-wrap: pretty; }
+
+/* ── Low-balance popover, above the Generate block, as wide as it. */
+.kit-funds {
+  position: fixed;
+  z-index: 9000;
+  box-sizing: border-box;
+  max-width: calc(100vw - 40px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--enki-rule);
+  border-radius: 12px;
+  background: var(--enki-paper);
+  color: var(--enki-ink);
+  box-shadow: var(--enki-shadow-pop);
+  font-size: 12.5px;
+  line-height: 1.45;
+  animation: kit-fade 140ms ease;
+}
+.kit-funds-text { margin: 0; text-wrap: pretty; }
+.kit-funds-acts { display: flex; gap: 8px; }
+.kit-funds-acts button { height: 34px; padding: 0 14px; border-radius: 999px; font: 500 12.5px/1 var(--font-sans), sans-serif; cursor: pointer; }
+.kit-funds-add { border: 0; background: var(--cta-bg); color: var(--cta-ink); }
+.kit-funds-try { border: 1px solid var(--enki-rule); background: transparent; color: var(--enki-ink-2); }
+.kit-funds-try:hover { border-color: var(--enki-ink-3); color: var(--enki-ink); }

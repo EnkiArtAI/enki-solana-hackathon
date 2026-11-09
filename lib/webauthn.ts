@@ -1,0 +1,416 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createHash, createHmac, hkdfSync, randomUUID, timingSafeEqual } from "crypto";
+import { SignJWT, jwtVerify } from "jose";
+import { getSupabaseServerClient } from "@/lib/supabaseServer";
+import { enrolledFactors, RESET_ADVICE, type Factor } from "@/lib/mfa";
+import { everyAddress, hasXLogin, mailSecurityNotice, X_NEEDS_EMAIL } from "@/lib/security-notice";
+import { withDefaults, type StepUpAction, type StepUpActions } from "@/lib/stepup-actions";
+
+/**
+ * App-side WebAuthn passkeys for STEP-UP 2FA. Opt-in: a user who registers a
+ * passkey must re-verify with it before sensitive actions (delete work,
+ * withdrawals). Gates OUR endpoints via OUR session — independent of the wallet
+ * vendor. See migrations/2026-07-11-webauthn.sql and app/api/auth/passkey/*.
+ */
+export const RP_NAME = "Enki Art";
+const CHALLENGE_TTL_S = 300;
+const STEPUP_TTL_S = 300;
+
+// SECURITY: the expected origin/RP MUST NOT come from the request (the Origin
+// header is attacker-controllable on a plain JSON POST), or WebAuthn's
+// anti-phishing binding becomes tautological. Pin it to server config:
+// WEBAUTHN_ORIGIN (+ optional WEBAUTHN_RP_ID), defaulting to localhost:3008 for
+// dev. Prod MUST set WEBAUTHN_ORIGIN to the real origin.
+export function rp(): { rpID: string; origin: string } {
+  const origin = (process.env.WEBAUTHN_ORIGIN || "http://localhost:3008").replace(/\/$/, "");
+  const rpID = process.env.WEBAUTHN_RP_ID || new URL(origin).hostname;
+  return { rpID, origin };
+}
+
+// Passkeys key on the STABLE users.id, not the volatile session wallet_address
+// (which is users.id before a wallet is attached and the address after).
+// Null only when no row answers. Throws on a failed read: an outage is not "no user".
+export async function resolveStableUserId(
+  supabase: ReturnType<typeof getSupabaseServerClient>,
+  walletAddress: string,
+): Promise<string | null> {
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(walletAddress)) {
+    return walletAddress;
+  }
+  const { data, error } = await supabase
+    .from("user_wallets")
+    .select("user_id")
+    .ilike("address", walletAddress)
+    .is("removed_at", null)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.user_id ?? null;
+}
+
+// Step-up proof is a short-lived signed token, NOT server state: stepup/verify
+// mints it, the sensitive endpoint verifies it (bound to user + scope). The
+// signing key is HKDF-derived from AUTH_PEPPER so it needs no extra env and is
+// domain-separated from the password pepper.
+function stepUpKey(): Uint8Array {
+  const p = process.env.AUTH_PEPPER;
+  if (!p) throw new Error("AUTH_PEPPER not configured");
+  return new Uint8Array(hkdfSync("sha256", Buffer.from(p, "base64"), new Uint8Array(0), Buffer.from("enki-stepup-v1"), 32));
+}
+
+/* What a step-up can be for. A scope names one action, and where the action
+   has a target, that target: one tap deletes one image, never another.
+   withdraw: is bound to the destination address. BAN-8 tried rebinding it to
+   a server-issued request id instead, checked at /submit — reverted per
+   independent review (2026-10-10): lib/payments/withdraw.ts's
+   buildWithdrawTx co-signs with the fee payer INSIDE /build, so a check that
+   lives only at /submit never runs before an externally-signed wallet's
+   client already holds a fully broadcastable transaction (walletUnlocked,
+   the gate the task agent cited as covering this, only reaches the CDP
+   bridge — adapterSign in SendUsdcPanel.tsx signs client-side and never
+   touches it). The gate is back at /build, before any co-sign, bound to the
+   destination as it always was; MFA-1's single-use consumption (below) now
+   makes the SAME token good for exactly one withdrawal regardless, which is
+   the property request-id binding was for — see docs/specs/BAN-8.md
+   "Decisions" for why binding to the id itself was not pursued (it cannot
+   exist before the very call it would gate, without a second migration to
+   persist the unsigned transaction for a later resume). delete-account and
+   delete-library:<id> (MFA-3), add-prompt and add-image (MFA-4) are the
+   opt-in gates: asked only once a factor is enrolled. add-prompt, add-image,
+   render, delete-work and delete-library are asked only while the account
+   has that action on in its Settings table (lib/stepup-actions.ts);
+   stepup-settings switches one of them off. wallet-change: is bound to the
+   Solana address a wallet change moves to, and asks for every factor
+   (requireAllFactors). recovery-codes is a new set of recovery codes, every factor
+   too (lib/mfa-recovery.ts). disconnect:google and disconnect:x remove a way in and
+   an address, every factor (app/api/auth/identities/[provider]/route.ts). */
+const SCOPE = /^(wallet|export|add-factor|guardians|delete-account|add-prompt|add-image|render|stepup-settings|recovery-codes|disconnect:(google|x)|delete-(work|library):[0-9a-f-]{36}|remove-factor:([0-9a-f-]{36}|totp|email)|(withdraw|wallet-change):[1-9A-HJ-NP-Za-km-z]{32,44})$/;
+export function isStepUpScope(scope: unknown): scope is string {
+  return typeof scope === "string" && SCOPE.test(scope);
+}
+
+/* Wallet unlock (Kev, 2026-10-07): the wallet JWT is minted only for a
+   session that passed a "wallet" or "export" step-up at most 2 h ago and
+   used the wallet in the last 15 min. The stamp sits on the session row, so
+   it ends with the session and never reaches another one. */
+const UNLOCK_MAX_MS = 2 * 3600_000;
+const UNLOCK_IDLE_MS = 15 * 60_000;
+
+/**
+ * What a passed step-up does beyond its token: a wallet or export step-up
+ * unlocks the session it came from, and an export one tells the owner by
+ * mail, since the key itself leaves through CDP where we cannot see it.
+ */
+export async function afterStepUp(
+  supabase: ReturnType<typeof getSupabaseServerClient>,
+  token: string | null,
+  userId: string,
+  scope: string,
+): Promise<void> {
+  if (scope !== "wallet" && scope !== "export") return;
+  if (token) {
+    const now = new Date().toISOString();
+    const { error } = await supabase.from("auth_sessions").update({ stepup_at: now, stepup_seen_at: now }).eq("token", token);
+    if (error) throw error;
+  }
+  if (scope !== "export") return;
+  // Three an hour at most, the mail quota every reset needs is shared; best effort, the step-up stands.
+  await mailSecurityNotice(
+    supabase,
+    userId,
+    "export",
+    "Your Enki wallet key is being exported",
+    `Someone just confirmed an export of your Enki wallet's private key (${new Date().toUTCString()}). ` +
+      `If that was you, there is nothing to do.\n\n` +
+      `If it was not, move your funds to a new wallet first, then ${RESET_ADVICE}`,
+  );
+}
+
+/** Whether a session row is unlocked for the wallet now. A row never stamped
+    parses as NaN, and NaN passes no <= : it stays locked. */
+export function walletUnlocked(s: { stepup_at?: string | null; stepup_seen_at?: string | null }, now = Date.now()): boolean {
+  return now - Date.parse(String(s.stepup_at)) <= UNLOCK_MAX_MS && now - Date.parse(String(s.stepup_seen_at)) <= UNLOCK_IDLE_MS;
+}
+
+/** factor names what passed. A token without one (server-made, or older) counts for nothing in requireAllFactors. */
+export async function mintStepUpToken(userId: string, scope: string, factor?: Factor): Promise<string> {
+  if (!isStepUpScope(scope)) throw new Error(`unknown step-up scope: ${scope}`);
+  return new SignJWT({ scope, factor })
+    .setProtectedHeader({ alg: "HS256" })
+    .setSubject(userId)
+    .setJti(randomUUID())
+    .setIssuedAt()
+    .setExpirationTime(`${STEPUP_TTL_S}s`)
+    .sign(stepUpKey());
+}
+
+async function verifyStepUpToken(token: string, userId: string, scope: string): Promise<{ jti: string | null; factor: unknown } | null> {
+  try {
+    const { payload } = await jwtVerify(token, stepUpKey());
+    if (payload.sub !== userId || payload.scope !== scope) return null;
+    return { jti: typeof payload.jti === "string" ? payload.jti : null, factor: payload.factor };
+  } catch {
+    return null;
+  }
+}
+
+/* Scopes that move money, hand out a private key (MFA-1: "withdraw, key
+   export") or change where money goes (a wallet change: an artist's payouts
+   follow it). A token for one of these is claimed in consumed_stepup_tokens
+   the first time it passes, so the SAME human approval cannot authorize a
+   second payout, export or change within the token's 5 minute TTL. For every
+   other scope requireStepUp lets a token be used for any number of calls until
+   it expires — none of those is a repeatable money action; requireAllFactors
+   claims whatever the scope. */
+function isMoneyScope(scope: string): boolean {
+  return scope === "export" || scope.startsWith("withdraw:") || scope.startsWith("wallet-change:");
+}
+
+/**
+ * Claims money-scope tokens' jtis so they cannot authorize a second action.
+ * DB-backed, not in-memory: Vercel runs many instances and a single process
+ * could never see another's claims. One insert, so one replay among them
+ * claims none. Returns false when a jti was already claimed (a replay) and
+ * throws on a genuine store failure — the caller (requireStepUp,
+ * requireAllFactors) must treat that throw as a refusal, never a silent pass.
+ */
+async function consumeStepUpTokens(
+  supabase: ReturnType<typeof getSupabaseServerClient>,
+  jtis: string[],
+  userId: string,
+  scope: string,
+): Promise<boolean> {
+  const { error } = await supabase.from("consumed_stepup_tokens").insert(jtis.map((jti) => ({ jti, user_id: userId, scope })));
+  if (!error) return true;
+  if (error.code === "23505") return false; // already claimed: a replay
+  throw error;
+}
+
+// How old a session may be to set up a user's FIRST factor. A factor someone
+// else plants locks the owner out of every gated action and lets the planter
+// through them, so it takes a fresh login, not just any live session.
+const FIRST_FACTOR_SESSION_MS = 10 * 60_000;
+
+/**
+ * Gate for adding a factor (passkey, authenticator, email), a way to sign in or
+ * a guardian, who can reset the password. With a factor in place every one of
+ * them has to confirm (requireAllFactors): one factor adding a passkey that then
+ * counts as the passkey factor would make "every factor" worth one. Without one
+ * it needs a session younger than ten minutes, answering 403 { reauth } otherwise.
+ */
+export async function requireAddFactor(req: NextRequest, userId: string, scope = "add-factor"): Promise<NextResponse | null> {
+  const supabase = getSupabaseServerClient();
+  let factors: Factor[];
+  try {
+    factors = await enrolledFactors(supabase, userId);
+  } catch {
+    return NextResponse.json({ error: "Could not verify security settings" }, { status: 503 });
+  }
+  if (factors.length > 0) return requireAllFactors(req, userId, scope);
+  const { data, error } = await supabase
+    .from("auth_sessions")
+    .select("created_at")
+    .eq("token", req.headers.get("X-Session-Token") ?? "")
+    .maybeSingle();
+  if (error) return NextResponse.json({ error: "Could not verify security settings" }, { status: 503 });
+  if (!data || Date.now() - Date.parse(String(data.created_at)) > FIRST_FACTOR_SESSION_MS) {
+    return NextResponse.json({ error: "Sign in again to change your security settings", reauth: true }, { status: 403 });
+  }
+  return null;
+}
+
+// One address warns, it removes nothing: a lost factor takes a recovery code, two guardians or a code to each of two addresses (DEC-2026-11-07-30).
+export const ADDRESS_FIRST = "Add Code by email first: that address is where we warn you when someone adds a way to sign in, adds a security factor or moves your money. " +
+  "It cannot remove a lost factor by itself: that takes a recovery code, two guardians, or a code to each of two email addresses.";
+/** The same for an account that signs in with X: why an email matters there, and what it cannot do. */
+export const ADDRESS_FIRST_X = `Add Code by email first. ${X_NEEDS_EMAIL}`;
+
+/**
+ * A first factor other than Code by email on an account with no email anywhere (an X or a wallet account): ADDRESS_FIRST,
+ * or ADDRESS_FIRST_X with an X login, so a lost factor has a way out and the security mails reach someone. Code by email is
+ * allowed: its confirm is the address. Null with a factor already, or an address. Throws on a failed read.
+ */
+export async function addressFirst(supabase: ReturnType<typeof getSupabaseServerClient>, userId: string, factors?: Factor[]): Promise<string | null> {
+  if ((factors ?? (await enrolledFactors(supabase, userId))).length) return null;
+  if ((await everyAddress(supabase, userId)).length) return null;
+  return (await hasXLogin(supabase, userId)) ? ADDRESS_FIRST_X : ADDRESS_FIRST;
+}
+
+/** addressFirst as a route's answer: 409 { addressFirst }, or null. A failed read is a 503, as requireAddFactor's. */
+export async function requireAddressFirst(userId: string, factors?: Factor[]): Promise<NextResponse | null> {
+  let refused: string | null;
+  try {
+    refused = await addressFirst(getSupabaseServerClient(), userId, factors);
+  } catch {
+    return NextResponse.json({ error: "Could not verify security settings" }, { status: 503 });
+  }
+  return refused ? NextResponse.json({ error: refused, addressFirst: true }, { status: 409 }) : null;
+}
+
+/**
+ * Gate a sensitive action behind step-up 2FA. A user with any factor
+ * (passkey, authenticator, email code) needs a valid X-StepUp-Token for this
+ * scope, minted by whichever factor they used; the answer names their
+ * factors so the client can offer them. Without a factor the action proceeds,
+ * unless `mandatory`, which answers 403 { enroll } instead. Fails CLOSED: no
+ * user is 401, a failed factor lookup 503.
+ * Returns null when allowed, or the NextResponse to return when blocked.
+ */
+export async function requireStepUp(
+  req: Pick<NextRequest, "headers">,
+  userId: string | null,
+  scope: string,
+  { mandatory = false }: { mandatory?: boolean } = {},
+): Promise<NextResponse | null> {
+  if (!userId) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const supabase = getSupabaseServerClient();
+  let factors: Factor[];
+  try {
+    factors = await enrolledFactors(supabase, userId);
+  } catch {
+    return NextResponse.json({ error: "Could not verify security settings" }, { status: 503 });
+  }
+  if (factors.length === 0) {
+    return mandatory ? NextResponse.json({ error: "Set up a second factor first", scope, enroll: true }, { status: 403 }) : null;
+  }
+  const refusal = () => NextResponse.json({ error: "Step-up verification required", scope, stepUp: true, factors }, { status: 401 });
+  // requireAllFactors' header is a list; here one token is asked for, the first.
+  const token = req.headers.get("X-StepUp-Token")?.split(",")[0];
+  const verified = token ? await verifyStepUpToken(token, userId, scope) : null;
+  if (!verified) return refusal();
+  if (!isMoneyScope(scope)) return null;
+  // A money scope's token is good for exactly one action: claim its jti now,
+  // before the caller does anything irreversible. No jti (a token minted
+  // before this change, or malformed) cannot be claimed, so it cannot pass —
+  // fail closed rather than treat an unclaimable token as single-use-exempt.
+  if (!verified.jti) return refusal();
+  let claimed: boolean;
+  try {
+    claimed = await consumeStepUpTokens(supabase, [verified.jti], userId, scope);
+  } catch (e) {
+    console.error("[webauthn] consumed-token store failed:", e instanceof Error ? e.message : e);
+    return NextResponse.json({ error: "Could not verify security settings" }, { status: 503 });
+  }
+  return claimed ? null : refusal();
+}
+
+/**
+ * requireStepUp where ONE factor is not enough: every factor enrolled now must
+ * pass, each with its own token for this user and this exact scope, comma
+ * separated in X-StepUp-Token. A token counts only with a factor claim that is
+ * enrolled now, and one factor twice counts once. While any is missing it
+ * answers 401 { all, factors, missing } and claims nothing; once all are there
+ * it claims every jti, so all of them are single use whatever the scope.
+ * Without a factor the action proceeds, unless `mandatory`: 403 { enroll }.
+ * Fails CLOSED: a failed factor lookup or token store is a 503.
+ */
+export async function requireAllFactors(
+  req: Pick<NextRequest, "headers">,
+  userId: string,
+  scope: string,
+  { mandatory = false }: { mandatory?: boolean } = {},
+): Promise<NextResponse | null> {
+  const supabase = getSupabaseServerClient();
+  const unread = () => NextResponse.json({ error: "Could not verify security settings" }, { status: 503 });
+  let factors: Factor[];
+  try {
+    factors = await enrolledFactors(supabase, userId);
+  } catch {
+    return unread();
+  }
+  if (factors.length === 0) {
+    return mandatory ? NextResponse.json({ error: "Set up a second factor first", scope, enroll: true }, { status: 403 }) : null;
+  }
+  const passed = new Map<Factor, string>();
+  for (const token of (req.headers.get("X-StepUp-Token") ?? "").split(",")) {
+    const verified = await verifyStepUpToken(token.trim(), userId, scope);
+    const factor = verified?.factor as Factor;
+    if (verified?.jti && factors.includes(factor)) passed.set(factor, verified.jti);
+  }
+  const refusal = (missing: Factor[]) => NextResponse.json({ error: "Every second factor has to confirm this", scope, stepUp: true, all: true, factors, missing }, { status: 401 });
+  const missing = factors.filter((f) => !passed.has(f));
+  if (missing.length) return refusal(missing);
+  try {
+    return (await consumeStepUpTokens(supabase, [...passed.values()], userId, scope)) ? null : refusal(factors);
+  } catch (e) {
+    console.error("[webauthn] consumed-token store failed:", e instanceof Error ? e.message : e);
+    return unread();
+  }
+}
+
+/**
+ * Which actions ask this account for its second factor: its Settings table
+ * over the defaults (lib/stepup-actions.ts). Anything unread (no row, no
+ * column before its migration, an outage) is the defaults.
+ */
+export async function stepUpActions(supabase: ReturnType<typeof getSupabaseServerClient>, userId: string): Promise<StepUpActions> {
+  const { data, error } = await supabase.from("users").select("stepup_actions").eq("id", userId).maybeSingle();
+  return withDefaults(error ? null : data?.stepup_actions);
+}
+
+/** requireStepUp for a switchable action: asked only when this account has it on. */
+export async function requireActionStepUp(
+  req: Pick<NextRequest, "headers">,
+  userId: string,
+  action: StepUpAction,
+  scope: string,
+): Promise<NextResponse | null> {
+  if (!(await stepUpActions(getSupabaseServerClient(), userId))[action]) return null;
+  return requireStepUp(req, userId, scope);
+}
+
+// ── challenge cookie (httpOnly) ─────────────────────────────────────────────
+// Signed for one user, one purpose, one step-up scope and five minutes.
+// Unsigned, the server took whatever challenge the client sent: a script with a
+// stolen session could verify a self-made attestation. The signature alone stops
+// no replay: the browser sends the cookie back, a passkey that keeps counter 0
+// (synced ones do) trips no counter check, so a step-up also binds the scope here
+// and spends the challenge (claimChallenge).
+const COOKIE_PATH = "/api/auth/passkey";
+
+function challengeMac(name: string, userId: string, challenge: string, expiry: string, scope: string): Buffer {
+  const p = process.env.AUTH_PEPPER;
+  if (!p) throw new Error("AUTH_PEPPER not configured");
+  const key = hkdfSync("sha256", Buffer.from(p, "base64"), new Uint8Array(0), Buffer.from("enki-webauthn-challenge-v1"), 32);
+  return createHmac("sha256", Buffer.from(key)).update(`${name}|${userId}|${challenge}|${expiry}|${scope}`).digest();
+}
+
+export function setChallengeCookie(res: NextResponse, name: string, challenge: string, userId: string, scope = "") {
+  const expiry = String(Date.now() + CHALLENGE_TTL_S * 1000);
+  const mac = challengeMac(name, userId, challenge, expiry, scope).toString("base64url");
+  res.cookies.set(name, `${challenge}.${expiry}.${mac}`, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    path: COOKIE_PATH,
+    maxAge: CHALLENGE_TTL_S,
+  });
+}
+
+/** The challenge this server issued to this user for this purpose and scope, still fresh; otherwise undefined. */
+export function readChallengeCookie(req: NextRequest, name: string, userId: string, scope = ""): string | undefined {
+  const [challenge, expiry, mac] = (req.cookies.get(name)?.value ?? "").split(".");
+  if (!challenge || !expiry || !mac || Number(expiry) < Date.now()) return undefined;
+  const expected = challengeMac(name, userId, challenge, expiry, scope);
+  const given = Buffer.from(mac, "base64url");
+  return given.length === expected.length && timingSafeEqual(given, expected) ? challenge : undefined;
+}
+
+/**
+ * Spends a step-up challenge: one assertion, one token. False when it was spent
+ * already; throws when the store fails. The store's jti column is a uuid, so the
+ * key is a uuid made from the challenge's hash; no new table needed.
+ */
+export async function claimChallenge(
+  supabase: ReturnType<typeof getSupabaseServerClient>,
+  challenge: string,
+  userId: string,
+  scope: string,
+): Promise<boolean> {
+  const h = createHash("sha256").update(`enki-webauthn-challenge|${challenge}`).digest("hex");
+  return consumeStepUpTokens(supabase, [`${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20, 32)}`], userId, scope);
+}
+
+export function clearChallengeCookie(res: NextResponse, name: string): NextResponse {
+  res.cookies.set(name, "", { path: COOKIE_PATH, maxAge: 0 });
+  return res;
+}

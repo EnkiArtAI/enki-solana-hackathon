@@ -1,0 +1,459 @@
+/* Home feed (feed-): the category bar, the masonry wall and its cards.
+   Colours come from the tokens only; anything always dark (the card's
+   gradient, the glass on artwork) is a mix of --enki-stage. */
+
+.feed { --feed-world-h: 44px; padding: calc(48px + var(--feed-world-h) + var(--ek-banner-h, 0px)) 0 96px; }
+
+/* ── All | Images | Videos (Kev, 2026-10-30: "at the very top menü bar über den categories"), then the category
+   bar: two 44 px rows of one look, always on screen. Create's Image | Video | Remix is the same row (CreateView). ── */
+.feed-world, .feed-bar {
+  position: fixed; left: var(--ek-sw, 0px); right: 0; z-index: 45;
+  display: flex; align-items: center; height: 44px; padding: 0 24px;
+  background: var(--header-bg);
+  backdrop-filter: blur(64px) saturate(200%); -webkit-backdrop-filter: blur(64px) saturate(200%);
+  border-bottom: 1px solid color-mix(in oklab, var(--enki-ink) 8%, transparent);
+  transition: left 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.feed-world { top: var(--ek-banner-h, 0px); height: var(--feed-world-h); }
+.feed-bar { top: calc(var(--ek-banner-h, 0px) + var(--feed-world-h)); }
+/* Create: no category bar, the tool right under the row. */
+.feed--create { padding: calc(var(--feed-world-h) + var(--ek-banner-h, 0px)) 0 0; }
+/* ── Create > Image after Sume's (Kev, 2026-10-30; measured there at 1440x900: a bar 1116 x 142, radius 24, 18 px over
+   the foot): at least the window below the row, the wall centred at the bar's width, the bar held to the window's foot
+   (sticky, so the wall's end never hides under it). ── */
+.feed-create-image {
+  --ci-w: 1116px;
+  display: flex; flex-direction: column;
+  min-height: calc(100dvh - var(--feed-world-h) - var(--ek-banner-h, 0px));
+  padding: 24px 24px 0;
+}
+.feed-create-image .ci-wall { flex: 1; width: 100%; max-width: var(--ci-w); margin: 0; padding-bottom: 24px; }
+/* The profile's rows (GalleryWall): one height per row, 2 px apart; the wall and a short last row start at the top left (Kev, 2026-11-09). */
+.feed-create-image .ci-rows { display: flex; flex-direction: column; gap: 2px; }
+.feed-create-image .ci-row { display: flex; justify-content: flex-start; gap: 2px; }
+.feed-create-image .ci-shot { position: relative; flex: none; height: 100%; overflow: hidden; background: var(--enki-paper-3); container-type: inline-size; }
+.feed-create-image .ci-shot img { display: block; width: 100%; height: 100%; object-fit: cover; }
+/* The picture opens in the viewer, as on the profile (gw-shot-open). */
+.feed-create-image .ci-open { display: block; width: 100%; height: 100%; padding: 0; border: 0; background: none; cursor: zoom-in; }
+.feed-create-image .ci-open:focus-visible { outline-offset: -2px; }
+.feed-create-image .ci-row .kit-tile { --kit-tile-radius: 0; box-shadow: none; }
+/* Not in the API's queue yet: a grey spinner (Kev, 2026-10-30: "the grey loading icon when it's not yet in the api
+   queue"); sent, the kit's lit one; failed, red, with Copy prompt. */
+.feed-create-image .kit-tile[data-status="rendering"]:not([data-sent]) .kit-spinner {
+  border-color: color-mix(in oklab, var(--enki-ink-3) 35%, transparent); border-top-color: var(--enki-ink-3);
+}
+.feed-create-image .kit-tile[data-status="failed"] { background: color-mix(in oklab, var(--enki-danger) 14%, var(--enki-paper)); }
+.feed-create-image .ci-copy {
+  position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%);
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px;
+  border: 0; border-radius: 999px; background: color-mix(in oklab, var(--enki-stage) 72%, transparent); color: var(--enki-on-stage);
+  font: 500 12.5px/1 var(--font-sans), sans-serif; white-space: nowrap; cursor: pointer;
+}
+.feed-create-image .ci-copy { background: var(--enki-danger); color: var(--enki-danger-ink); }
+/* A narrow picture keeps the icon alone (its name stays the button's label). */
+@container (max-width: 150px) {
+  .feed-create-image .ci-copy { width: 32px; padding: 0; justify-content: center; }
+  .feed-create-image .ci-copy span { display: none; }
+}
+.feed-create-image .ci-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 40dvh; text-align: center; color: var(--enki-ink-3); }
+.feed-create-image .ci-empty p { margin: 0; font-size: 14px; }
+.feed-create-image .ci-empty .kit-title { font-size: 32px; color: var(--enki-ink); }
+.feed-create-image .ci-retry { height: 36px; padding: 0 16px; border: 1px solid var(--enki-rule); border-radius: 999px; background: var(--enki-paper); color: var(--enki-ink); cursor: pointer; }
+.feed-create-image .ci-more { height: 40px; display: flex; align-items: center; justify-content: center; color: var(--enki-ink-3); }
+.feed-create-image .ci-spin { animation: kit-spin 0.9s linear infinite; }
+/* A finished picture's actions (Kev, 2026-10-30, after Higgsfield's, "but apply the enki style to it"): round 28 px
+   buttons on the stage's glass, the rail at the top right, Reference and Animate at the bottom left, shown while the
+   pointer is on the picture, while one of them has the keyboard's focus and while one of its menus is open. A touch
+   screen has no hover: its picture carries ⋯ alone (TileActions). */
+.feed-create-image :is(.ci-rail, .ci-pair) { position: absolute; display: flex; gap: 4px; opacity: 0; transition: opacity 0.14s; }
+.feed-create-image .ci-rail { top: 8px; right: 8px; flex-direction: column; }
+.feed-create-image .ci-pair { left: 8px; bottom: 8px; }
+.feed-create-image .ci-shot:is(:hover, :focus-within, :has([aria-expanded="true"])) :is(.ci-rail, .ci-pair) { opacity: 1; }
+.feed-create-image .ci-act {
+  display: inline-flex; flex: none; align-items: center; justify-content: center; gap: 6px; width: 28px; height: 28px; padding: 0;
+  border: 0; border-radius: 999px; background: color-mix(in oklab, var(--enki-stage) 62%, transparent); color: var(--enki-on-stage);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); cursor: pointer; transition: background 0.14s, max-width 0.18s;
+}
+.feed-create-image .ci-act:is(:hover, [aria-expanded="true"]) { background: color-mix(in oklab, var(--enki-stage) 88%, transparent); }
+.feed-create-image .ci-act[aria-disabled] { color: color-mix(in oklab, var(--enki-on-stage) 50%, transparent); }
+/* Reference and Animate say their names on hover or focus, inside the picture. */
+.feed-create-image .ci-pair .ci-act { justify-content: flex-start; width: auto; max-width: 28px; padding: 0 0 0 6.5px; overflow: hidden; }
+/* Neither the icon nor the name shrinks: closed, the icon alone shows (the name waits past the edge). */
+.feed-create-image .ci-pair .ci-act > * { flex: none; }
+.feed-create-image .ci-pair .ci-act span { padding-right: 10px; font: 500 12px/1 var(--font-sans), sans-serif; white-space: nowrap; }
+.feed-create-image .ci-pair .ci-act:is(:hover, :focus-visible) { max-width: min(112px, calc(100cqi - 88px)); }
+.feed-create-image .ci-dots { position: absolute; top: 8px; right: 8px; display: none; width: 32px; height: 32px; }
+@media (hover: none), (pointer: coarse) {
+  .feed-create-image :is(.ci-rail, .ci-pair) { display: none; }
+  .feed-create-image .ci-dots { display: inline-flex; }
+}
+/* Its menus (portaled): the kit's popover and sheet rows, Delete in red, the notes in the kit's grey, Studio's Keep on
+   paper (it is drawn for the viewer's dark stage). */
+.ci-menu { min-width: 208px; max-width: min(300px, calc(100vw - 40px)); }
+.ci-menu-note { margin: 0; padding: 6px 10px 8px; font-size: 12px; line-height: 1.45; color: var(--enki-ink-3); white-space: normal; }
+:is(.ci-menu, .ci-sheet) a.kit-opt { text-decoration: none; }
+:is(.ci-menu, .ci-sheet) .kit-opt[data-tone="danger"] { color: var(--enki-danger); }
+:is(.ci-menu, .ci-sheet) .kit-opt[aria-disabled] { opacity: 0.45; }
+.ci-menu-sub { margin-left: auto; opacity: 0.6; }
+.ci-menu-back { color: var(--enki-ink-3); }
+.ci-keep { padding: 4px 6px 6px; }
+.ci-keep .st-keep { padding-top: 0; border-top: 0; }
+.ci-keep .st-keep :is(.kit-label, .st-note) { color: var(--enki-ink-3); }
+.ci-keep .st-keep .st-btn { border-color: var(--enki-rule); background: var(--enki-paper); color: var(--enki-ink); }
+.ci-keep .st-keep .st-btn--cta { border-color: transparent; background: var(--enki-ink); color: var(--enki-paper); }
+.ci-keep .st-keep .st-input { border-color: var(--enki-rule); background: var(--enki-paper); color: var(--enki-ink); }
+/* The bar: the words over the pills, Generate on the right across both rows, the line under Generate below them all.
+   ComposeFoot's box steps aside so its pills, Generate and line take their places in this grid. */
+.feed-create-image .ci-bar {
+  position: sticky; bottom: 18px; z-index: 40;
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "prompt prompt gen" "plus pills gen" "cost cost cost";
+  align-items: center; gap: 10px 8px;
+  box-sizing: border-box; width: 100%; max-width: var(--ci-w); margin: auto auto 18px;
+  padding: 12px 12px 12px 16px;
+  border: 1px solid var(--enki-rule); border-radius: 24px;
+  background: color-mix(in oklab, var(--enki-paper) 90%, transparent);
+  backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%);
+  box-shadow: var(--enki-shadow-card);
+}
+.feed-create-image .ci-bar:focus-within { border-color: var(--enki-ink-3); }
+.feed-create-image .ci-bar .iv-foot { display: contents; }
+.feed-create-image .ci-prompt { grid-area: prompt; display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
+.feed-create-image .ci-text {
+  flex: 1; min-width: 0; padding: 10px 2px; border: 0; outline: 0; resize: none; background: none;
+  color: var(--enki-ink); font: 400 15px/1.35 var(--font-sans), sans-serif;
+}
+.feed-create-image .ci-text::placeholder { color: var(--enki-ink-3); }
+/* The words' box, sized by its top edge (AutosizeTextarea's grip): it takes the field's place in the row. */
+.feed-create-image .ci-text-box { flex: 1; min-width: 0; }
+/* Quick Create's "Make it a prompt →" is its own button (mobile-modal-add-var-btn); here only its place in the row. */
+.feed-create-image .ci-make { flex: none; margin-top: 8px; }
+.feed-create-image .ci-make:hover { border-color: var(--enki-ink-3); }
+.feed-create-image .ci-refs { display: flex; flex: none; gap: 6px; padding-top: 2px; }
+.feed-create-image .ci-ref { position: relative; width: 36px; height: 36px; border-radius: 8px; overflow: hidden; background: var(--enki-paper-3); }
+.feed-create-image .ci-ref img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.feed-create-image .ci-ref[data-pending] { opacity: 0.45; }
+.feed-create-image .ci-ref-x {
+  position: absolute; top: 2px; right: 2px; display: flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; padding: 0; border: 0; border-radius: 50%;
+  background: color-mix(in oklab, var(--enki-stage) 70%, transparent); color: var(--enki-on-stage); font: 500 12px/1 var(--font-sans), sans-serif; cursor: pointer;
+}
+.feed-create-image .ci-plus { grid-area: plus; --kit-pill-h: 40px; width: 40px; padding: 0; font-size: 20px; font-weight: 300; }
+.feed-create-image .ci-plus:disabled { opacity: 0.45; cursor: not-allowed; }
+.feed-create-image .ci-bar .iv-bar { grid-area: pills; --kit-pill-h: 40px; }
+.feed-create-image .ci-bar .iv-gen { grid-area: gen; align-self: stretch; display: flex; }
+.feed-create-image .ci-bar .kit-cost { grid-area: cost; }
+.feed-create-image .ci-bar .kit-cost:has(> .kit-cost-left:empty) { display: none; }
+/* Generate as Sume's, 144 x 84 with the price under the word, in Quick Create's look (the kit's hero button). */
+.feed-create-image .ci-bar:not([data-phone]) .kit-gen--hero { flex-direction: column; gap: 7px; width: 152px; height: auto; min-height: 84px; padding: 0 12px; }
+.feed-create-image .ci-bar:not([data-phone]) .kit-gen--hero .kit-gen-chip { position: static; padding: 5px 10px; }
+.feed-create-image .ci-bar:not([data-phone]) .kit-gen--hero[data-short] { justify-content: center; gap: 6px; padding: 0 8px; white-space: normal; }
+/* Phone and tablet: the words, then "+" and the pills sliding sideways in one line, Generate the bar's width. */
+.feed-create-image .ci-bar[data-phone] { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "prompt prompt" "plus pills" "gen gen" "cost cost"; }
+.feed-create-image .ci-bar[data-phone] .iv-bar { --kit-pill-h: 36px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding: 4px; margin: -4px; }
+.feed-create-image .ci-bar[data-phone] .ci-plus { --kit-pill-h: 36px; width: 36px; }
+.feed-create-image .ci-bar[data-phone] .kit-pill-name { display: none; }
+.feed-create-image .ci-bar[data-phone] .kit-gen--hero { width: 100%; height: 52px; }
+.feed-chips {
+  flex: 1; min-width: 0; height: 100%; display: flex; gap: 2px; overflow-x: auto;
+  transition: opacity 0.2s ease, visibility 0.2s;
+}
+.feed-chip {
+  flex-shrink: 0; height: 44px; padding: 0 14px;
+  border: 0; border-bottom: 2px solid transparent; background: none;
+  color: var(--enki-ink-3); font: inherit; font-size: 12px; font-weight: 600;
+  letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; cursor: pointer;
+  transition: color 0.15s;
+}
+.feed-chip:hover, .feed-chip[aria-pressed="true"] { color: var(--enki-ink); }
+.feed-chip[aria-pressed="true"] { border-bottom-color: var(--enki-ink); }
+.feed-chip:focus-visible { outline-offset: -6px; }
+
+.feed-tools { display: flex; align-items: center; gap: 6px; padding-left: 6px; flex-shrink: 0; }
+.feed-pill {
+  display: inline-flex; align-items: center; height: 28px; padding: 0 10px;
+  border: 1px solid var(--enki-rule); border-radius: 999px; background: transparent;
+  color: var(--enki-ink-3); font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  white-space: nowrap; cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.feed-pill:hover { color: var(--enki-ink); border-color: color-mix(in oklab, var(--enki-ember) 45%, var(--enki-rule)); }
+.feed-pill.on {
+  color: var(--enki-ember); border-color: var(--enki-ember);
+  background: color-mix(in oklab, var(--enki-ember) 10%, transparent);
+}
+.feed-pill-n { white-space: pre; }
+
+/* Generator popover, right-aligned under its chip */
+.feed-gen { position: relative; }
+.feed-gen-pop {
+  position: absolute; top: 40px; right: 0; min-width: 240px; max-width: calc(100vw - 40px);
+  display: flex; flex-direction: column; gap: 8px; padding: 8px;
+  border: 1px solid var(--enki-rule); border-radius: 12px; background: var(--enki-paper);
+  box-shadow: var(--enki-shadow-pop);
+}
+.feed-gen-reset {
+  align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 8px;
+  border: 0; border-radius: 999px; background: none; color: var(--enki-ember);
+  font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.feed-gen-reset:disabled { color: var(--enki-ink-3); cursor: default; }
+.feed-gen-group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.feed-gen-label {
+  flex-basis: 100%; padding: 2px 4px; border: 0; background: none; text-align: left;
+  color: var(--enki-label-quiet); font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-size: 10px; font-weight: 400; letter-spacing: 2px; text-transform: uppercase; cursor: pointer;
+}
+.feed-gen-label:hover { color: var(--enki-ink); }
+.feed-gen-label.on { color: var(--enki-ember); }
+.feed-gen-chip {
+  display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 11px;
+  border: 1px solid var(--enki-rule); border-radius: 999px; background: transparent;
+  color: var(--enki-ink-3); font: inherit; font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.feed-gen-chip:hover { color: var(--enki-ink); border-color: color-mix(in oklab, var(--enki-ember) 45%, var(--enki-rule)); }
+.feed-gen-chip.on {
+  color: var(--enki-ember); border-color: var(--enki-ember);
+  background: color-mix(in oklab, var(--enki-ember) 10%, transparent);
+}
+
+/* Search: a glyph that unrolls into a field. The width animates so the row
+   keeps its rhythm instead of jumping by 240 px in one frame. */
+.feed-search { position: relative; display: flex; align-items: center; }
+.feed-search input {
+  width: 0; padding: 0; border: 0; border-bottom: 1px solid transparent; background: none;
+  color: var(--enki-ink); font: inherit; font-size: 13px; outline: none;
+  transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1), padding 0.22s, border-color 0.22s;
+}
+.feed-search.open input { width: 240px; padding: 4px 2px; border-bottom-color: var(--enki-rule); }
+.feed-search.open input:focus { border-bottom-color: var(--enki-ember); }
+.feed-search input::placeholder { color: var(--enki-ink-3); }
+.feed-search-btn {
+  flex-shrink: 0; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 999px; background: none; color: var(--enki-ink-3); cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+.feed-search-btn:hover { color: var(--enki-ember); background: var(--enki-paper-2); }
+.feed-suggest {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 2; margin: 0; padding: 4px 0; list-style: none;
+  border: 1px solid var(--enki-rule); border-radius: 10px; background: var(--enki-paper); box-shadow: var(--enki-shadow-pop);
+}
+.feed-suggest-item {
+  display: flex; align-items: baseline; gap: 8px; padding: 7px 12px; overflow: hidden; white-space: nowrap;
+  color: var(--enki-ink); font-size: 13px; cursor: pointer;
+}
+.feed-suggest-item.active { background: var(--enki-paper-2); color: var(--enki-ember); }
+.feed-suggest-label { overflow: hidden; text-overflow: ellipsis; }
+.feed-suggest-item small { color: var(--enki-ink-3); font-size: 11px; }
+.feed-suggest-kind { flex: 0 0 auto; color: var(--enki-label-quiet); font-family: var(--font-jetbrains-mono), ui-monospace, monospace; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; }
+
+/* Below 1024 px an open search owns the row; the chips step back. */
+.feed-bar--takeover .feed-chips { flex: 0 0 0; opacity: 0; visibility: hidden; }
+.feed-bar--takeover .feed-tools { flex: 1; min-width: 0; padding-left: 0; }
+.feed-bar--takeover .feed-search { flex: 1; min-width: 0; }
+.feed-bar--takeover .feed-search input { flex: 1; width: 100%; }
+
+/* ── Creators found by a search ── */
+.feed-creators { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 8px 4px; }
+.feed-creator {
+  display: flex; align-items: center; gap: 8px; padding: 6px 12px 6px 6px;
+  border: 1px solid var(--enki-rule); border-radius: 999px; background: var(--enki-paper-2);
+  color: var(--enki-ink); font: inherit; font-size: 13px; cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.feed-creator:hover { border-color: var(--enki-ember); color: var(--enki-ember); }
+.feed-creator-initial { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%; overflow: hidden; }
+.feed-creator-initial {
+  display: flex; align-items: center; justify-content: center;
+  background: var(--enki-paper-3); color: var(--enki-ink-2); font-size: 12px; font-weight: 600;
+}
+.feed-creator small { color: var(--enki-ink-3); font-size: 11px; }
+
+/* ── The wall: MasonryGrid places every cell ── */
+/* On its own (a bookmark category, the Likes tab): the same grid, no fixed bar above it. */
+.feed-wall { padding: 8px 0 40px; }
+.feed-wall-note { margin: 18px 0; font-size: 13px; color: var(--enki-ink-3); }
+.feed-wall-note .ek-btn { width: auto; min-height: 32px; margin-left: 8px; padding: 0 12px; }
+.feed-grid { position: relative; }
+.feed-cell { position: absolute; top: 0; left: 0; }
+.feed-cell:hover { z-index: 1; } /* a lifted card's shadow falls over its neighbours */
+.feed-skel { border-radius: 4px; background: var(--enki-paper-2); animation: kit-pulse 1.2s ease-in-out infinite; }
+.feed-sentinel { height: 1px; }
+
+.feed-note {
+  max-width: 520px; margin: 28px auto; padding: 18px;
+  border: 1px solid var(--enki-rule); background: var(--enki-paper-2);
+}
+.feed-note h2 { margin: 0 0 8px; font-size: 28px; line-height: 1.15; }
+.feed-note p { margin: 0; color: var(--enki-ink-2); font-size: 14px; }
+.feed-note .ek-btn { width: auto; min-height: 40px; margin-top: 16px; padding: 0 18px; }
+
+/* ── Card: the picture, the price top left, the bookmark top right once
+   saved; no title, no artist (Kev, 2026-10-13). Slightly rounded. ── */
+.feed-card {
+  position: relative; width: 100%; height: 100%; overflow: hidden; border-radius: 10px;
+  background: var(--enki-paper-3);
+  box-shadow: 0 2px 8px color-mix(in oklab, var(--enki-stage) 6%, transparent);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s;
+}
+/* On dark paper the artwork's edge needs a hairline. */
+.dark .feed-card { border: 1px solid color-mix(in oklab, var(--enki-ink) 6%, transparent); }
+.feed-card-img {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+  opacity: 0; transition: opacity 0.2s ease;
+}
+.feed-card.is-loaded .feed-card-img { opacity: 1; }
+/* A video card's silent loop, over its poster and under its button (components/enki/FeedVideo.tsx). */
+.feed-card-video { position: absolute; inset: 0; }
+.feed-card-video video { display: block; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.2s ease; }
+.feed-card-video video.is-playing { opacity: 1; }
+.feed-card-hit {
+  position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; padding: 0;
+  border: 0; background: none; cursor: pointer;
+}
+.feed-card-hit:focus-visible { outline-offset: -2px; }
+
+/* Always visible, top left, on the picture: the one fact a card carries. */
+.feed-card-price {
+  position: absolute; top: 8px; left: 8px; z-index: 2; padding: 3px 7px; border-radius: 4px;
+  border: 1px solid var(--enki-rule); background: color-mix(in oklab, var(--enki-paper) 92%, transparent);
+  color: var(--enki-ink); font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.04em; pointer-events: none;
+}
+.feed-card-price.is-free {
+  border-color: transparent; background: color-mix(in oklab, var(--enki-stage) 55%, transparent); color: var(--enki-on-stage);
+}
+/* Title and artist: hidden until a hover or the keyboard focus (Kev,
+   2026-10-13), then they rise in over a gradient; the artist is a link. */
+.feed-card-foot {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 2;
+  display: flex; flex-direction: column; gap: 4px; padding: 38px 10px 10px 12px; pointer-events: none;
+}
+.feed-card-foot::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; opacity: 0; transition: opacity 0.2s ease;
+  background: linear-gradient(to top,
+    color-mix(in oklab, var(--enki-stage) 78%, transparent) 0%,
+    color-mix(in oklab, var(--enki-stage) 45%, transparent) 55%,
+    transparent 100%);
+}
+.feed-card-title {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  color: var(--enki-on-stage); font-family: var(--font-serif), Georgia, serif; font-size: 18px; line-height: 1.15;
+  text-shadow: 0 1px 2px color-mix(in oklab, var(--enki-stage) 35%, transparent);
+}
+.feed-card-artist {
+  align-self: flex-start; max-width: 100%; padding: 0; border: 0; background: none; text-align: left;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--enki-on-stage); font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer;
+}
+.feed-card-title, .feed-card-artist {
+  opacity: 0; transform: translateY(6px);
+  transition: opacity 0.2s ease, transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+/* The bookmark: top right, shown on hover; a set one stays. */
+.feed-card-mark {
+  position: absolute; top: 8px; right: 8px; z-index: 3; width: 30px; height: 30px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 50%; background: color-mix(in oklab, var(--enki-stage) 38%, transparent);
+  color: var(--enki-on-stage); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); cursor: pointer;
+  opacity: 0; pointer-events: none; transition: opacity 0.18s ease, background 0.15s;
+}
+.feed-card-mark:hover { background: color-mix(in oklab, var(--enki-stage) 60%, transparent); }
+.feed-card-mark:focus-visible { outline-color: var(--enki-on-stage); }
+.feed-card.is-marked .feed-card-mark { opacity: 1; pointer-events: auto; }
+/* The owner's pencil on their profile's Released (DEC-456): the bookmark's look, bottom right, always shown; the title
+   that rises in keeps clear of it. */
+.feed-card-edit {
+  position: absolute; right: 8px; bottom: 8px; z-index: 3; width: 30px; height: 30px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 50%; background: color-mix(in oklab, var(--enki-stage) 38%, transparent);
+  color: var(--enki-on-stage); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); cursor: pointer;
+}
+.feed-card-edit:hover { background: color-mix(in oklab, var(--enki-stage) 60%, transparent); }
+.feed-card:has(.feed-card-edit) .feed-card-foot { padding-right: 46px; }
+/* A prompt's numbers on a profile's Released (Kev, 2026-11-03): bottom left, always shown, on any picture; the title
+   that rises in stands above them, and they keep clear of the pencil. */
+.feed-card-nums {
+  position: absolute; left: 8px; bottom: 12px; z-index: 3; box-sizing: border-box;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; max-width: calc(100% - 16px); min-height: 22px; padding: 3px 7px;
+  border-radius: 4px; background: color-mix(in oklab, var(--enki-stage) 62%, transparent); color: var(--enki-on-stage);
+  font-family: var(--font-mono), ui-monospace, monospace; font-size: 10.5px; font-weight: 600; white-space: nowrap; cursor: pointer;
+}
+.feed-card-nums span { display: inline-flex; align-items: center; gap: 3px; }
+.feed-card:has(.feed-card-edit) .feed-card-nums { max-width: calc(100% - 54px); }
+.feed-card:has(.feed-card-nums) .feed-card-foot { padding-bottom: 40px; }
+/* Beside the pencil on a phone's narrow card the numbers take a second row rather than lose the last one. */
+.feed-card:has(.feed-card-edit):has(.feed-card-nums) .feed-card-foot { padding-bottom: 56px; }
+.feed-card:focus-within :is(.feed-card-title, .feed-card-artist) { opacity: 1; transform: none; }
+.feed-card:focus-within .feed-card-artist { pointer-events: auto; }
+.feed-card:focus-within .feed-card-foot::before { opacity: 1; }
+.feed-card:focus-within .feed-card-mark { opacity: 1; pointer-events: auto; }
+
+@media (hover: hover) and (pointer: fine) {
+  .feed-card:hover { transform: translateY(-4px); box-shadow: 0 16px 32px color-mix(in oklab, var(--enki-stage) 8%, transparent); }
+  .feed-card:hover :is(.feed-card-title, .feed-card-artist) { opacity: 1; transform: none; }
+  .feed-card:hover .feed-card-artist { pointer-events: auto; }
+  .feed-card:hover .feed-card-foot::before { opacity: 1; }
+  .feed-card:hover .feed-card-mark { opacity: 1; pointer-events: auto; }
+}
+
+/* ── Phones, tablets, touch ── */
+@media (max-width: 1023.98px) {
+  .feed-bar, .feed-world { padding: 0 12px; }
+}
+@media (max-width: 767.98px) {
+  /* .ek-main already clears the phone header; the bottom keeps the last row clear of Quick Create's round button. */
+  .feed { padding: calc(48px + var(--feed-world-h)) 0 76px; }
+  .feed--create { padding: var(--feed-world-h) 0 0; }
+  /* The bar docked to the screen's foot, edge to edge (Kev, 2026-10-30). */
+  .feed-create-image { min-height: calc(100dvh - var(--ek-head-h, 46px) - var(--ek-banner-h, 0px) - var(--feed-world-h)); padding: 12px 12px 0; }
+  .feed-create-image .ci-bar {
+    bottom: 0; width: calc(100% + 24px); max-width: none; margin: auto -12px 0;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px)); border-width: 1px 0 0; border-radius: 20px 20px 0 0;
+  }
+  /* Under the phone header, or in its place while it is tucked (--ek-head, enki-shell.css), clear of its small burger;
+     the categories under the world row. */
+  .feed-world { top: calc(var(--ek-head, 46px) + var(--ek-banner-h, 0px)); transition: top 0.2s ease, transform 0.2s ease; }
+  .feed-bar { top: calc(var(--ek-head, 46px) + var(--ek-banner-h, 0px) + var(--feed-world-h)); transition: top 0.2s ease, transform 0.2s ease; }
+  /* Scrolled down, the categories, the filter and the search go up with the header and come back with it (Kev,
+     2026-10-27: "beim scrollen runter soll auch das menü oben mit den categories und der filter und the suche
+     verschwinden"). */
+  .ek-tucked .feed-world { transform: translateY(calc(-100% - var(--ek-banner-h, 0px))); }
+  .ek-tucked .feed-bar { transform: translateY(calc(-100% - var(--ek-banner-h, 0px) - var(--feed-world-h))); }
+  .feed-chip { padding: 0 12px; }
+}
+@media (pointer: coarse) {
+  .feed-chip { min-width: 44px; }
+  .feed-search-btn { width: 44px; height: 44px; }
+  .feed-search input { font-size: 16px; }
+  .feed-card-mark { width: 44px; height: 44px; }
+  .feed-card-mark svg { width: 19px; height: 19px; }
+}
+/* ── A profile's Released (Kev, 2026-11-03): the sort, then this filter bar, in a row of the page right under the tabs.
+   It scrolls away with the page, so the bar gives up its fixed place, its tuck and its glass; last in this file, as
+   those rules have the same weight. The z-index holds the bar's own 45 (a flex item keeps it) inside this row: over the
+   wall, for the Generator's popover, and under the stuck tabs (z 40). ── */
+.pf-controls {
+  position: relative; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px;
+  margin: calc(8px - clamp(16px, 4vw, 40px)) 0 4px;
+}
+.pf-controls .feed-bar {
+  position: static; flex: 1 1 320px; min-width: 0; padding: 0; transform: none;
+  background: none; backdrop-filter: none; -webkit-backdrop-filter: none; border-bottom: 0;
+}
+.pf-controls ~ .feed-wall { transition: opacity 0.15s ease; }
+.pf-controls[data-busy] ~ .feed-wall { opacity: 0.55; }
+/* Edge to edge on a phone, a masonry cell rounded up reaches 1 px past the screen (393 px wide: 199 + 195), and the
+   panel's body would slide sideways by it. */
+@media (max-width: 767.98px) { .pf-controls ~ .feed-wall { overflow-x: clip; } }
+/* The row stays where it is when its choice leaves few cards: the page keeps the room for the tabs to stay stuck. */
+.pf-tabs + .pf-wrap:has(> .pf-controls) { min-height: calc(100dvh - 80px); }
+@media (prefers-reduced-motion: reduce) {
+  .feed-card, .feed-card *, .feed-card-foot::before, .feed-bar, .feed-world, .feed-chips, .feed-search input { transition: none; }
+  .pf-controls ~ .feed-wall { transition: none; }
+  .feed-card:hover { transform: none; }
+  .feed-skel { animation: none; opacity: 0.6; }
+}

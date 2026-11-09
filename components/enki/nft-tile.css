@@ -1,0 +1,38 @@
+/* An NFT tile's check (NftTile.tsx), on the reference picker and in Filter by NFT: grey until pressed, then a green or a red
+   border, the renewal on the picture's top right. Tokens only. */
+.nft-tile { position: relative; display: flex; flex-direction: column; min-width: 0; }
+.nft-tile > button:first-child { flex: 1; width: 100%; }
+
+.nft-tile[data-check="grey"] img, .nft-tile[data-check="grey"] .pf-nft-none, .nft-tile[data-check="refused"] img, .nft-tile[data-check="refused"] .pf-nft-none { filter: grayscale(1); opacity: 0.55; }
+.nft-tile[data-check="grey"]:hover img { opacity: 0.8; }
+/* Above the surfaces' own marks: a ticked or marked tile stays green. */
+.nft-tile[data-check="allowed"] > button:first-child, .nft-tile[data-check="allowed"] > button:first-child:hover { border: 2px solid var(--enki-green); }
+.nft-tile[data-check="refused"] > button:first-child, .nft-tile[data-check="refused"] > button:first-child:hover { border: 2px solid var(--enki-danger); cursor: not-allowed; }
+.nft-tile[data-busy] > button:first-child { cursor: progress; }
+/* The tick means something on a usable tile only, and sits at the top left on both surfaces. */
+.nft-tile:not([data-check="allowed"]) .pf-nft-check { display: none; }
+.nft-tile .enki-nftp-check { right: auto; left: 5px; }
+
+.nft-tile-blank { display: block; width: 100%; aspect-ratio: 1; background: var(--enki-paper-3); }
+
+.nft-tile-spin { position: absolute; top: 50%; left: 50%; display: flex; margin: -9px 0 0 -9px; color: var(--enki-ink); pointer-events: none; animation: kit-spin 1s linear infinite; }
+
+.nft-tile-renew { position: absolute; top: 5px; right: 5px; display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 1px solid var(--enki-rule); border-radius: 50%; background: var(--enki-paper); color: var(--enki-ink); cursor: pointer; }
+/* Its 44 px press (kit-hit) reaches 10 px past its circle: under a finger it stays inside the tile, or the last column's
+   would push the sheet sideways. */
+@media (pointer: coarse) { .nft-tile-renew { top: 10px; right: 10px; } }
+.nft-tile-renew:hover { background: var(--enki-paper-3); }
+.nft-tile-renew[aria-disabled="true"] { background: var(--enki-paper-3); color: var(--enki-ink-3); opacity: 0.7; cursor: not-allowed; }
+
+.nft-check-note { margin: 0; padding: 6px 10px; font-size: 12.5px; line-height: 1.4; color: var(--enki-ink); background: var(--enki-paper); overflow-wrap: anywhere; }
+.nft-check-note[hidden] { display: none; }
+/* The filter's tiles scroll with their menu or sheet; the picker's foot already stays put, and holds the words. */
+.pf-nft-grid + .nft-check-note { position: sticky; bottom: 0; border-top: 1px solid var(--enki-rule); }
+.pf-nft-panel .nft-check-note { bottom: -6px; }
+/* A tablet's sheet can be shorter than the screen, and grows upward: its note's two lines are kept free from the start, or the tiles jump under the finger between two presses, and a press can be a paid check. */
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  .kit-sheet .pf-nft-grid + .nft-check-note { box-sizing: border-box; min-height: 48px; }
+  .kit-sheet .pf-nft-grid + .nft-check-note[hidden] { display: block; visibility: hidden; }
+}
+.enki-nftp-foot { flex-wrap: wrap; }
+.enki-nftp-foot .nft-check-note { flex-basis: 100%; padding: 0; }

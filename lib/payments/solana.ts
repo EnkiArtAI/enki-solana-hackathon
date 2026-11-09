@@ -1,0 +1,288 @@
+/**
+ * The Solana side of generation payments: which chain, which connection, and
+ * the one keypair that signs everything Enki signs.
+ *
+ * Chain resolution matches lib/usdc-balance.ts exactly, so a balance is always
+ * read from the chain a payment settles on. Nothing here is a request
+ * parameter — a client that could pick the chain could pick devnet and pay in
+ * play money.
+ *
+ * ── The fee payer ───────────────────────────────────────────────────────
+ * Enki pays every fee (Terms of Use, Section 4). That is not generosity: our
+ * buyers onboard through Coinbase Onramp and hold USDC, not SOL, so a fee
+ * pushed onto them does not get collected — it surfaces as a generation that
+ * fails for a reason they cannot act on. At ~0.13 cents per generation the
+ * alternative costs more in lost checkouts than it saves.
+ *
+ * The same keypair is the NONCE AUTHORITY, and that part is structural rather
+ * than economic: voiding an authorisation whose buyer has closed the tab is
+ * only possible if we can act on the nonce alone. Hand that authority to the
+ * buyer and abandoned authorisations could never be flushed.
+ */
+import { Connection, Keypair, PublicKey, SendTransactionError } from "@solana/web3.js";
+import bs58 from "bs58";
+import { PAYMENT_CHAINS, isSolanaChain, type ChainKey } from "@/shared/payment-config";
+
+/**
+ * WHICH Solana chain this deployment settles on — the key, not the config.
+ *
+ * Exported because the generate route was taking it from the client instead:
+ * `chain as "solana" | "solana-devnet"` straight off a query parameter, while
+ * the fee payer, the RPC connection and the USDC mint all came from here. Two
+ * sources of truth for one decision, and the one a stranger controls was
+ * winning for the half of the code that read the query string.
+ */
+export function solanaChainKey(): ChainKey {
+  // || rather than ??: a `.env` line reading `SOLANA_PAYMENT_CHAIN=` puts an
+  // EMPTY STRING in the environment, and ?? treats that as a real value —
+  // found on the devnet dry run, where it made every payment path throw
+  // "Not a Solana chain key: ".
+  return solanaKey(process.env.SOLANA_PAYMENT_CHAIN || process.env.SOLANA_FUND_CHAIN || "solana-devnet");
+}
+
+/**
+ * The chain x402 payments settle on: X402_PAYMENT_CHAIN, else the
+ * deployment's. Its own setting because PayBox agents pay real USDC on
+ * mainnet while the escrow program is still on devnet (Kev, 2026-10-17:
+ * "go, mainnet"); every other rail keeps solanaChainKey().
+ */
+export function x402ChainKey(): ChainKey {
+  return process.env.X402_PAYMENT_CHAIN ? solanaKey(process.env.X402_PAYMENT_CHAIN) : solanaChainKey();
+}
+
+function solanaKey(key: string): ChainKey {
+  if (!(key in PAYMENT_CHAINS) || !isSolanaChain(key as ChainKey)) {
+    throw new Error(`Not a Solana chain key: ${key}`);
+  }
+  return key as ChainKey;
+}
+
+/** A chain's config; without a key, the deployment's. */
+export function solanaChain(key: ChainKey = solanaChainKey()): { rpcUrl: string; usdc: string } {
+  return PAYMENT_CHAINS[solanaKey(key)] as { rpcUrl: string; usdc: string };
+}
+
+export function usdcMint(key?: ChainKey): PublicKey {
+  return new PublicKey(solanaChain(key).usdc);
+}
+
+/**
+ * The RPC endpoints, in the order they are tried.
+ *
+ * SOLANA_RPC_URL overrides ONLY on mainnet. The var holds one URL and a URL
+ * is chain-specific — on 2026-08-24 a mainnet Helius URL sat in the env of a
+ * devnet deployment and every settlement died with the RPC's 401 instead of
+ * reaching the (free, public) devnet RPC the chain config already named.
+ * SOLANA_RPC_URL_FALLBACK, a second provider, follows the same rule (ENG-12:
+ * with one URL, an outage at that provider stopped every payment), and the
+ * chain's public endpoint comes last.
+ */
+export function solanaRpcUrls(key: ChainKey = solanaChainKey()): string[] {
+  const mainnet = key === "solana";
+  const urls = [
+    mainnet ? process.env.SOLANA_RPC_URL : undefined,
+    mainnet ? process.env.SOLANA_RPC_URL_FALLBACK : undefined,
+    solanaChain(key).rpcUrl,
+  ].map((u) => u?.trim()).filter((u): u is string => Boolean(u) && parses(u!));
+  return [...new Set(urls)];
+}
+
+/** A URL that cannot be parsed is dropped, by name only: it may carry a key. */
+function parses(url: string): boolean {
+  try {
+    return Boolean(new URL(url));
+  } catch {
+    console.error("[solana-rpc] an RPC URL in the environment cannot be parsed and is skipped");
+    return false;
+  }
+}
+
+/**
+ * "confirmed" rather than "finalized": a confirmed payment is one the cluster
+ * has agreed on, and waiting the extra ~13s for finality would sit in the
+ * user's checkout for no gain we can act on.
+ */
+export function solanaConnection(key?: ChainKey): Connection {
+  const urls = solanaRpcUrls(key);
+  return new Connection(urls[0], urls.length > 1 ? { commitment: "confirmed", fetch: failover(urls) } : "confirmed");
+}
+
+/**
+ * The next endpoint is tried only when one cannot answer: a network error, a
+ * 5xx, a refused key (401, 403), a spent quota or rate limit (429), or no
+ * headers within RPC_ATTEMPT_MS. Those are refusals before the request was
+ * handled. An answer is final, a JSON-RPC error included (a rejected
+ * transaction comes back as HTTP 200), so nothing rejected is re-sent
+ * elsewhere. Re-sending after an endpoint that timed out is safe: a signed
+ * transaction has one signature and lands at most once, and the sender
+ * confirms rather than believes a failed send (broadcastAndConfirm).
+ */
+const RPC_ATTEMPT_MS = 10_000;
+/** How long this instance skips an endpoint that did not answer, so only the first call pays RPC_ATTEMPT_MS. */
+const DOWN_FOR_MS = 30_000;
+const UNANSWERED = new Set([401, 403, 429]);
+const downUntil = new Map<string, number>();
+function failover(urls: string[]): typeof fetch {
+  return async (_input, init) => {
+    const live = urls.filter((u) => (downUntil.get(u) ?? 0) <= Date.now());
+    const order = live.length ? live : urls;
+    for (let i = 0; ; i++) {
+      const last = i === order.length - 1;
+      const ac = last ? null : new AbortController();
+      const timer = ac && setTimeout(() => ac.abort(), RPC_ATTEMPT_MS);
+      try {
+        const res = await fetch(order[i], ac ? { ...init, signal: ac.signal } : init);
+        if (last || (res.status < 500 && !UNANSWERED.has(res.status))) return res;
+      } catch (e) {
+        if (last) throw e;
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
+      downUntil.set(order[i], Date.now() + DOWN_FOR_MS);
+      reportDown(order[i]);
+    }
+  };
+}
+
+/** Tests and a provider fix: forget which endpoints were down and which were reported. */
+export function resetRpcHealth(): void {
+  downUntil.clear();
+  reported.clear();
+}
+
+/** A transaction that did not land and never will: refused before it moved, failed on chain, or expired. */
+export class Rejected extends Error {}
+
+/**
+ * Wait for "confirmed" by asking over HTTP. web3.js confirms on the FIRST
+ * endpoint's websocket, which is down exactly when the failover is needed;
+ * these questions go through the failover like every other call. Throws
+ * Rejected when the transaction failed on chain or its blockhash expired;
+ * anything else (the timeout, an endpoint that cannot answer) leaves the
+ * outcome open.
+ */
+export async function confirmSignature(
+  connection: Connection,
+  signature: string,
+  { lastValidBlockHeight, timeoutMs = 60_000 }: { lastValidBlockHeight?: number; timeoutMs?: number } = {},
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const s = (await connection.getSignatureStatuses([signature])).value[0];
+    if (s?.err) throw new Rejected(`Transaction failed on-chain: ${JSON.stringify(s.err)}`);
+    if (s?.confirmationStatus === "confirmed" || s?.confirmationStatus === "finalized") return;
+    if (lastValidBlockHeight !== undefined && (await connection.getBlockHeight("confirmed")) > lastValidBlockHeight) {
+      throw new Rejected("Transaction expired before it landed");
+    }
+    if (Date.now() >= deadline) throw new Error("Timed out waiting for confirmation");
+    await new Promise((r) => setTimeout(r, 1_500));
+  }
+}
+
+/**
+ * Send a signed transaction and confirm it (confirmSignature). A rejection
+ * is final (Rejected, with the node's message) unless the network already
+ * has the transaction: the failover re-sends after an endpoint that cannot
+ * answer, and one that timed out may have forwarded it first, so "already
+ * processed", or a refusal from a lagging node, is checked against the
+ * signature's status. A send that failed in transit is confirmed, not
+ * believed. maxRetries unset leaves the rebroadcast to the RPC until expiry.
+ */
+export async function broadcastAndConfirm(
+  connection: Connection,
+  raw: Uint8Array,
+  signature: string,
+  { maxRetries, ...wait }: { lastValidBlockHeight?: number; timeoutMs?: number; maxRetries?: number } = {},
+): Promise<void> {
+  try {
+    await connection.sendRawTransaction(raw, { preflightCommitment: "confirmed", maxRetries });
+  } catch (e) {
+    if (e instanceof SendTransactionError && !/already been processed/i.test(e.message) && !(await networkHas(connection, signature))) {
+      throw new Rejected(e.message);
+    }
+  }
+  await confirmSignature(connection, signature, wait);
+}
+
+/** Whether any endpoint knows the signature; a lookup that fails counts as yes, to be confirmed rather than believed. */
+async function networkHas(connection: Connection, signature: string): Promise<boolean> {
+  try {
+    return Boolean((await connection.getSignatureStatuses([signature])).value[0]);
+  } catch {
+    return true;
+  }
+}
+
+const reported = new Set<string>();
+/** Logged with the host only: a provider URL carries its API key in the query. */
+function reportDown(url: string): void {
+  const host = new URL(url).host;
+  console.error(`[solana-rpc] ${host} did not answer; trying the next endpoint`);
+  if (reported.has(host)) return;
+  reported.add(host);
+  // One mail per instance, not per request.
+  void Promise.all([import("@/lib/admin-notify"), import("@/lib/supabaseServer")])
+    .then(([{ notifyAdmins }, { getSupabaseServerClientSafe }]) => {
+      const db = getSupabaseServerClientSafe();
+      return db && notifyAdmins(db, { subject: "Solana RPC failover", text: `${host} did not answer. Payments moved to the next RPC endpoint.` });
+    })
+    .catch(() => {});
+}
+
+let cachedFeePayer: Keypair | null = null;
+
+/**
+ * The fee payer and nonce authority.
+ *
+ * Accepts base58 or a solana-keygen JSON array, the same two shapes
+ * SOLANA_TREASURY_SECRET_KEY documents. Errors deliberately say only that
+ * parsing failed: a message quoting the value, its length, or its prefix would
+ * put key material into a log line, which is exactly the incident SECRETS.md
+ * exists to prevent.
+ */
+export function feePayerKeypair(): Keypair {
+  if (cachedFeePayer) return cachedFeePayer;
+
+  const raw = process.env.SOLANA_FEE_PAYER_SECRET_KEY?.trim();
+  if (!raw) throw new Error("SOLANA_FEE_PAYER_SECRET_KEY is not set");
+
+  let bytes: Uint8Array;
+  try {
+    bytes = raw.startsWith("[") ? Uint8Array.from(JSON.parse(raw)) : bs58.decode(raw);
+  } catch {
+    throw new Error("SOLANA_FEE_PAYER_SECRET_KEY is neither base58 nor a JSON byte array");
+  }
+  if (bytes.length !== 64) {
+    throw new Error("SOLANA_FEE_PAYER_SECRET_KEY is not a 64-byte secret key");
+  }
+
+  cachedFeePayer = Keypair.fromSecretKey(bytes);
+  return cachedFeePayer;
+}
+
+/** Tests and key rotation. */
+export function resetFeePayerCache(): void {
+  cachedFeePayer = null;
+}
+
+/**
+ * Below this the fee payer can no longer front a nonce account, and every
+ * generation stops. One nonce rent (0.00144768) plus an ATA rent (0.00203928)
+ * plus fees is roughly 0.0036 SOL per in-flight generation, so this is about
+ * 27 of them — above one full batch of 24 (0.0864 SOL), and under the 0.25 SOL
+ * a fresh fee payer holds, so a funded key does not start out low.
+ */
+export const FEE_PAYER_LOW_LAMPORTS = 100_000_000; // 0.1 SOL
+
+/**
+ * Whether the fee payer can still work. Returns the balance so a caller can
+ * log or alert on the number rather than just the verdict — an empty fee payer
+ * halts ALL generations, and finding that out from a customer complaint is the
+ * failure mode worth spending an RPC call to avoid.
+ */
+export async function feePayerBalance(
+  connection: Connection,
+): Promise<{ lamports: number; low: boolean }> {
+  const lamports = await connection.getBalance(feePayerKeypair().publicKey);
+  return { lamports, low: lamports < FEE_PAYER_LOW_LAMPORTS };
+}

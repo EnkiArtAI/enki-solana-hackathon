@@ -1,0 +1,58 @@
+"use client";
+
+import { useMemo } from "react";
+import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
+import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
+import "@solana/wallet-adapter-react-ui/styles.css";
+import { PAYMENT_CHAINS } from "@/shared/payment-config";
+
+/**
+ * The cluster payments settle on, as the server's SOLANA_PAYMENT_CHAIN says
+ * it (set both). The wallet adapter names the phone wallet's chain after this
+ * endpoint (wallet-adapter-react WalletProvider.js:43), so a devnet endpoint
+ * on mainnet would have the phone wallet sign for devnet. Nothing reads from
+ * it: the server builds and sends every payment.
+ */
+export function paymentEndpoint(chain = process.env.NEXT_PUBLIC_SOLANA_PAYMENT_CHAIN): string {
+  return PAYMENT_CHAINS[chain === "solana" ? "solana" : "solana-devnet"].rpcUrl;
+}
+
+export function SolanaWalletProvider({ children }: { children: React.ReactNode }) {
+  // Wallet Standard 자동감지로 Phantom / Solflare / Backpack / Glow 등이 등록된다.
+  // Solflare도 Wallet Standard로 정상 등록되며 (콘솔 로그로 확인), 레거시 어댑터를 추가하면
+  // wallet-adapter가 "Solflare can be removed from your app" 경고를 띄울 뿐 무의미하므로 빈 배열로 둔다.
+  const wallets = useMemo(() => [], []);
+  const walletStorageKey = "symphoraSolanaWalletName";
+
+  return (
+    <ConnectionProvider endpoint={paymentEndpoint()}>
+      <WalletProvider
+        wallets={wallets}
+        // autoConnect를 끈다. select() 직후 adapter.connect()가 두 번 호출되면
+        // Solflare 같은 일부 Standard wallet에서 "Connection rejected" 에러로 이어지기 때문.
+        // 모달이 명시적으로 connect()를 호출한다.
+        autoConnect={false}
+        localStorageKey={walletStorageKey}
+        onError={(error) => {
+          const msg = (error.message ?? "").toLowerCase();
+          // User backing out of a popup (connect/sign) is normal navigation,
+          // not an error — Solflare says "Cancelled", others "rejected"/"denied".
+          if (
+            msg.includes("rejected") || msg.includes("closed") || msg.includes("user reject") ||
+            msg.includes("cancel") || msg.includes("denied") || msg.includes("dismiss") ||
+            msg.includes("record not found") // Solflare disconnect-when-not-connected
+          ) return;
+          // SIWS (signIn) isn't supported by every wallet (e.g. Zerion). The wallet
+          // picker already falls back to signMessage, so this adapter-emitted
+          // "signIn: Not Implemented" event is expected — don't surface it as an error.
+          if (error.name === "WalletSignInError" || msg.includes("not implemented")) return;
+          console.error("[Solana Wallet]", error);
+        }}
+      >
+        <WalletModalProvider>
+          {children}
+        </WalletModalProvider>
+      </WalletProvider>
+    </ConnectionProvider>
+  );
+}

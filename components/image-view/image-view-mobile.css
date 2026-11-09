@@ -1,0 +1,155 @@
+.iv-root.iv-mobile { display: flex; flex-direction: column; overflow: hidden; padding-bottom: env(safe-area-inset-bottom); }
+/* From 600 px the phone column stops growing: 560 wide, centred (README §2). */
+@media (min-width: 600px) {
+  .iv-root.iv-mobile > * { width: 100%; max-width: 560px; margin-inline: auto; }
+}
+.iv-mobile [hidden] { display: none; }
+.iv-mobile-compose { display: flex; flex-direction: column; gap: 16px; }
+.iv-mobile .iv-foot { flex-shrink: 0; gap: 8px; padding: 10px 0 24px; border: 0; border-top: 1px solid var(--enki-rule-2); }
+/* One line of 36 px pills; the generator shows its logo only (handoff §5.11). Never a second row (Kev, 2026-10-27: "ich
+   mag hier kein freien abstand da ... in einer reihe einfach immer zu finden"): a screen too narrow for all of them
+   slides the row sideways; 4 px around keep each pill's 44 px press and its focus ring inside it (review 2026-10-27). */
+.iv-mobile .iv-foot .iv-bar {
+  --kit-pill-h: 36px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none;
+  padding: 4px; margin: -4px; scroll-padding-inline: 4px;
+}
+.iv-mobile .iv-foot .kit-pill { font-size: 13px; }
+/* The reset at the row's end stays in sight when the row runs wider than the screen, on an opaque ground (review
+   2026-10-27: at 320 px it sat off-screen in the hidden-scrollbar row). */
+.iv-mobile .iv-foot .iv-reset { position: sticky; right: 0; background: linear-gradient(var(--enki-fill), var(--enki-fill)) var(--enki-paper); box-shadow: -6px 0 6px var(--enki-paper); }
+.iv-mobile .kit-pill-name { display: none; }
+.iv-mobile .kit-gen--hero { width: 100%; height: 58px; padding: 0 84px; font-size: 17px; }
+.iv-mobile .kit-gen--hero .kit-gen-chip { top: 8px; right: 8px; bottom: 8px; font-size: 14px; }
+.iv-mobile .kit-gen--hero[data-short] { padding: 0 8px 0 20px; }
+
+/* ── v2 phone (handoff §4, §5.2, §5.10): a 52 px header, one scroller, a fixed foot. */
+.iv-top.iv-top--phone { height: 52px; padding: 0 20px; }
+.iv-top--phone .iv-top-right { gap: 8px; }
+.iv-top-home { display: flex; padding: 0; border: 0; background: none; cursor: pointer; }
+.iv-top-home img { display: block; height: 24px; }
+.iv-mbody { flex: 1; display: flex; flex-direction: column; min-height: 0; padding: 4px 20px 0; }
+.iv-mscroll {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  /* 9 px a side, taken back by the margin, hold a plain prompt's words' frame (.iv-plain-words). */
+  margin: 0 -9px;
+  padding: 0 9px 10px;
+  overflow-y: auto;
+  /* Never sideways, as the desktop's scroller: the words sliding in from the right gave a finger 26 px to pan. */
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+.iv-mhero-row { display: flex; align-items: flex-start; gap: 10px; padding-top: 2px; }
+/* The frame takes the picture's shape, no grey bars beside a portrait (Kev, 2026-10-26: "links und rechts so graue
+   balken ... get rid of that"): the box is the full width at the picture's ratio (--ar, MainImage) and the stage, the
+   slide and the arrows' layer wrap it in the flow instead of filling a square. */
+.iv-mhero {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  border-radius: 28px;
+  overflow: hidden;
+  touch-action: pan-y;
+  user-select: none;
+}
+.iv-mhero .iv-heronav,
+.iv-mhero .iv-hero-slide { position: relative; inset: auto; }
+.iv-mhero .iv-stage { position: relative; height: auto; min-height: 0; container-type: normal; }
+.iv-mhero .iv-box { width: 100%; height: auto; border-radius: 0; box-shadow: none; }
+/* No picture yet (the blank composer, a render, a failure): nothing to hug, so a tall asked ratio stops at half the
+   screen instead of pushing the composer out of sight (review 2026-10-26). */
+.iv-mhero .iv-box:not(:has(.iv-open)) { max-height: 50dvh; }
+/* The logo leaves the page, and the row above the image says who made it. */
+.iv-mobile .iv-x,
+.iv-mhero .iv-meta { display: none; }
+/* The desktop's meta row (.iv-metarow): who made it and the reviews at the left, Premium at the right, under the title. */
+.iv-mmeta { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 28px; margin-top: -6px; }
+.iv-mchip {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--enki-ink-2);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 28px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.iv-mpremium { margin-left: auto; font-size: 12px; }
+/* The History column: as tall as the hero whatever it holds (size containment: its renders never make the row taller,
+   they scroll), a narrow filled rail with nothing on it while it is empty. */
+.iv-mthumbs {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  align-self: stretch;
+  gap: 8px;
+  width: 52px;
+  padding: 2px;
+  overflow-y: auto;
+  scrollbar-width: none;
+  contain: size;
+}
+.iv-mthumbs[data-empty] { width: 26px; padding: 0; border-radius: 13px; background: var(--enki-fill); }
+.iv-mthumb { flex: 0 0 48px; width: 48px; height: 48px; padding: 0; border: 2px solid transparent; border-radius: 12px; overflow: hidden; background: var(--enki-paper-3); cursor: pointer; }
+.iv-mthumb[aria-pressed="true"] { border-color: var(--enki-ink); }
+.iv-mthumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+/* 12 px more room under the header (Kev, 2026-10-26: "bisschen mehr platz zwischen dem titel und dem top menü"). */
+.iv-mtitle { margin: 12px 0 0; font: 400 21.5px/1.1 var(--font-serif), Georgia, serif; letter-spacing: -0.01em; color: var(--enki-ink); }
+/* The small Back beside the title (DEC-460): quiet, centred on the title's first line, its chevron on the column's
+   left edge. */
+.iv-mtitle-row { display: flex; align-items: flex-start; gap: 2px; }
+.iv-mback {
+  flex-shrink: 0; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px;
+  margin: 10px 0 0 -6px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--enki-ink-3); cursor: pointer;
+}
+.iv-mback:hover { background: var(--enki-fill); color: var(--enki-ink); }
+/* At the head's right, also with nothing at its left (Composer). */
+.iv-mobile .iv-mode { width: 150px; margin-left: auto; }
+.iv-mobile .iv-mode-btn { height: 28px; font-size: 12.5px; }
+.iv-mobile .iv-refimg { font-size: 13px; }
+/* Full prompt's text keeps 12 px more from either side (Kev, 2026-10-26: "links und rechts neben dem text"). */
+.iv-mobile .iv-doc { font-size: 15.5px; padding: 0 12px; }
+/* Its words are typed into where they stand (PromptPanel's runs): on a touch screen never under 16 px, so iOS does not
+   zoom on the tap into them (the kit's rule, kit-media.css; review 2026-10-29). */
+@media (pointer: coarse) { .iv-mobile .iv-doc { font-size: 16px; } }
+.iv-mobile .iv-tok-img { width: 30px; height: 30px; border-radius: 8px; }
+.iv-mobile .iv-plain { padding: 14px 0 10px; }
+.iv-mobile .iv-chip { font-size: 13.5px; }
+.iv-mobile .iv-easy .kit-field { padding: 7px 0 9px; }
+.iv-mobile .iv-easy .kit-field-text { font-size: 18px; line-height: 1.4; }
+.iv-mobile .iv-hero-arrow { width: 34px; height: 34px; }
+.iv-mobile .iv-hero-arrow[data-side="left"] { left: 12px; }
+.iv-mobile .iv-hero-arrow[data-side="right"] { right: 12px; }
+/* The History column's name over its renders. */
+.iv-mthumbs-yours { flex-shrink: 0; font-size: 10.5px; font-weight: 600; color: var(--enki-ink-2); text-align: center; }
+.iv-mthumbs-note { flex-shrink: 0; font-size: 11px; text-align: center; }
+
+/* The agent row opened in the scroller: no "More below" over its request (Kev, 2026-10-27: "lass das da ruhig sein mit
+   more below wenn ich das da aufklappe"). */
+.iv-mobile:has(.iv-agent-toggle[aria-expanded="true"]) .iv-more { display: none; }
+
+/* A narrow phone (under 360 px, a 320 px screen) draws the view a size smaller (Kev, 2026-10-27: "wenn alles schmaler
+   ist, so kann alles auch bisschen kleiner werden. aktuell sehen die elemente alle viel zu groß aus"): the pills, the
+   Generate button, the title, the switch, the agent row; the fields' text stays at 17 px (16 is where iOS zooms). */
+@media (max-width: 359.98px) {
+  .iv-mobile .iv-foot { gap: 6px; padding: 8px 0 16px; }
+  /* 32 px pills: 6 px above and below for their 44 px press (review 2026-10-27). */
+  .iv-mobile .iv-foot .iv-bar { --kit-pill-h: 32px; gap: 4px; padding-block: 6px; margin-block: -6px; }
+  /* All five fit 280 px: generator, ratio, resolution, quality and count measured 301 px with 5 px gaps at 9/10 px sides. */
+  .iv-mobile .iv-foot .kit-pill { font-size: 12px; gap: 4px; padding: 0 7px 0 8px; }
+  .iv-mobile .kit-gen--hero { height: 48px; padding: 0 76px; font-size: 15.5px; }
+  .iv-mobile .kit-gen--hero .kit-gen-chip { top: 6px; right: 6px; bottom: 6px; font-size: 13px; }
+  .iv-mtitle { font-size: 19px; }
+  .iv-mobile .iv-mode-btn { height: 26px; font-size: 12px; }
+  .iv-mobile .iv-easy .kit-field-text { font-size: 17px; }
+  .iv-mobile .iv-agent-toggle { height: 32px; gap: 6px; font-size: 12px; }
+}

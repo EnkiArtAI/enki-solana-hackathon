@@ -1,0 +1,126 @@
+/* Settings' areas: the mock v64 (scratchpad artifact-files/8962c970-.../project, Main.dc.html and its parts) in the
+   theme's tokens (plan settings-integration/plan.md §3). No colour of its own but the white plate the card brands'
+   marks are drawn on and the settings badge's green tint (settings.css .set-badge-good). Prefix .sa- (Settings
+   areas): .st- is Studio's (studio.css) and the kit's field (kit-base.css .st-input). DEC-2026-11-08-43. */
+
+/* The root of the new Settings: its phone layout follows the panel's width, which is narrower than the window beside
+   the shell's menu (plan §4). Mounted in FE-11. */
+.sa {
+  container-type: inline-size;
+  container-name: settings;
+  font-family: var(--font-sans);
+  color: var(--enki-ink);
+}
+
+/* The sheet (Main.dc.html:447-558): the shell's veil (.ek-modal-scrim), a window's frame (enki-window.ts CARD), and a
+   scroller inside it, so the bar sits 26 px in from the rounded corners. */
+.sa-sheet { width: 100%; display: flex; flex-direction: column; padding: 0; animation: sa-pop 0.28s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.sa-sheet-body {
+  min-height: 0;
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 24px 22px 28px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.sa-sheet-body::-webkit-scrollbar { width: 6px; }
+.sa-sheet-body::-webkit-scrollbar-button { display: none; height: 0; }
+.sa-sheet-body::-webkit-scrollbar-track { background: transparent; margin: 26px 0; }
+.sa-sheet-body::-webkit-scrollbar-thumb { background: var(--enki-photo-ring); border-radius: 999px; }
+.sa-sheet-body::-webkit-scrollbar-thumb:hover { background: var(--enki-ember); }
+@supports not selector(::-webkit-scrollbar) {
+  .sa-sheet-body { scrollbar-width: thin; scrollbar-color: var(--enki-photo-ring) transparent; }
+}
+.sa-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+@keyframes sa-pop { from { transform: scale(0.96) translateY(10px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* The done step (Main.dc.html:548-555): a green check in a circle, the title, its lines, Done. */
+.sa-done { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 16px 0 4px; text-align: center; }
+.sa-done-mark {
+  width: 64px;
+  height: 64px;
+  border-radius: 999px;
+  background: rgba(31, 138, 91, 0.1);
+  color: var(--enki-green);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.sa-done-title { font-size: 18px; }
+.sa-done-lines { display: flex; flex-direction: column; gap: 6px; max-width: 360px; font-size: 14px; color: var(--enki-label-quiet); }
+
+/* A payment provider (Provider.dc.html:21-49). */
+.sa-prov {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px 18px 14px;
+  border: 1.5px solid var(--enki-rule);
+  border-radius: 20px;
+  background: var(--enki-paper);
+  color: var(--enki-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.25s ease, background-color 0.25s ease;
+}
+.sa-prov:hover:not(:disabled) { transform: translateY(-2px); box-shadow: var(--enki-shadow-card); }
+.sa-prov[aria-pressed="true"] { border-color: var(--enki-ember); background: var(--enki-accent-soft); }
+.sa-prov:disabled { opacity: 0.45; cursor: default; }
+.sa-prov-main { display: flex; flex-direction: column; gap: 10px; min-width: 0; flex: 1; }
+.sa-prov-mark { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 22px; }
+.sa-prov-mark svg { display: block; }
+.sa-prov-chip { padding: 2px 8px; border-radius: 999px; background: var(--enki-paper-2); }
+.sa-prov-sub { font-size: 13px; color: var(--enki-label-quiet); }
+.sa-prov-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+/* The plate the card brands draw their marks for: white in every theme, as the brands' own badges are. */
+.sa-prov-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 28px;
+  border: 1px solid var(--enki-rule);
+  border-radius: 7px;
+  background: #fff;
+  overflow: hidden;
+}
+.sa-prov-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--enki-rule);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.sa-prov[aria-pressed="true"] .sa-prov-check { background: var(--cta-solid); color: var(--cta-ink); }
+
+/* A phone (Provider.dc.html:17): compact cards, in the Settings panel by its width, in a sheet by the window's. */
+@container settings (max-width: 700px) {
+  .sa-prov { padding: 10px; gap: 6px; }
+  .sa-prov-sub { font-size: 11px; line-height: 1.3; }
+  .sa-prov-badges { gap: 4px; }
+  .sa-prov-badge { width: 32px; height: 22px; }
+  .sa-prov-badge svg { transform: scale(0.75); }
+  .sa-prov-check { width: 18px; height: 18px; font-size: 10px; }
+}
+@media (max-width: 700px) {
+  .sa-sheet .sa-prov { padding: 10px; gap: 6px; }
+  .sa-sheet .sa-prov-sub { font-size: 11px; line-height: 1.3; }
+  .sa-sheet .sa-prov-badges { gap: 4px; }
+  .sa-sheet .sa-prov-badge { width: 32px; height: 22px; }
+  .sa-sheet .sa-prov-badge svg { transform: scale(0.75); }
+  .sa-sheet .sa-prov-check { width: 18px; height: 18px; font-size: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sa-sheet { animation: none; }
+  .sa-prov { transition: none; }
+}

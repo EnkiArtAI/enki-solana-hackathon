@@ -1,0 +1,119 @@
+/* GalleryWall (Kev, 2026-10-14): justified rows edge to edge, one height per
+   row; a near-full-screen viewer for the picked image. */
+.gw { width: 100%; }
+.gw-empty { border: 1px solid var(--enki-rule); background: var(--enki-paper-2); padding: 60px; text-align: center; border-radius: 4px; }
+.gw-spin { animation: gw-spin 1.2s linear infinite; }
+@keyframes gw-spin { to { transform: rotate(360deg); } }
+
+/* The rows: each spans the full width; its images share its height. */
+.gw-rows { display: flex; flex-direction: column; gap: 2px; }
+.gw-row { display: flex; gap: 2px; }
+.gw-shot { position: relative; height: 100%; flex: 0 0 auto; background: var(--enki-paper-3); overflow: hidden; }
+.gw-shot-open { display: block; width: 100%; height: 100%; padding: 0; border: 0; background: transparent; cursor: pointer; transition: opacity 0.12s; }
+.gw-shot-open img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.gw-shot:hover .gw-shot-open { opacity: 0.92; }
+/* The checkbox (top-left) and the heart (top-right) show on hover; a mark or a red heart stays. */
+.gw-mark, .gw-heart {
+  position: absolute; top: 8px; width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  opacity: 0; transition: opacity 0.12s, transform 0.12s;
+}
+.gw-mark { left: 8px; border: 2px solid #fff; background: rgba(0, 0, 0, 0.35); color: #fff; }
+.gw-heart { right: 8px; border: 0; background: rgba(0, 0, 0, 0.35); color: #fff; }
+.gw-shot:hover .gw-mark, .gw-shot:hover .gw-heart, .gw-mark[aria-checked="true"], .gw-heart--on { opacity: 1; }
+.gw-mark[aria-checked="true"] { background: var(--enki-ink); border-color: var(--enki-ink); color: var(--enki-paper); }
+.gw-heart--on { color: #ff3b5c; }
+.gw-shot--marked .gw-shot-open { outline: 3px solid var(--enki-ink); outline-offset: -3px; }
+@media (hover: none) { .gw-mark, .gw-heart { opacity: 1; } }
+
+/* The bar for the marked images: below the screen, over everything on the page. */
+.gw-bar {
+  position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 70;
+  display: flex; align-items: center; gap: 4px; padding: 8px 10px 8px 16px;
+  background: var(--enki-ink); color: var(--enki-paper); border-radius: 999px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35); font-family: var(--font-sans);
+}
+.gw-bar-count { font-size: 13px; font-weight: 600; white-space: nowrap; }
+.gw-bar-sep { width: 1px; height: 22px; margin: 0 6px; background: color-mix(in oklab, var(--enki-paper) 30%, transparent); }
+.gw-bar-btn { width: 38px; height: 38px; border: 0; border-radius: 50%; background: transparent; color: inherit; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.gw-bar-btn:hover { background: color-mix(in oklab, var(--enki-paper) 14%, transparent); }
+.gw-bar-btn--danger:hover { color: #ff9a7a; }
+.gw-more { height: 48px; display: flex; align-items: center; justify-content: center; }
+
+/* The viewer: the image as large as the screen allows, the details in a column beside it. */
+/* Below the shell's banner (it carries --ek-banner-h, z 300), above the menu (z 165): the X stays whole (Kev, 2026-10-15). */
+.gw-viewer {
+  position: fixed; inset: var(--ek-banner-h, 0px) 0 0 0; z-index: 250;
+  background: rgba(8, 10, 14, 0.92);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.gw-viewer-body {
+  display: flex; gap: 16px; align-items: stretch;
+  width: min(100%, 1600px); height: min(100%, 92vh);
+}
+.gw-stage { position: relative; flex: 1 1 auto; min-width: 0; height: 100%; display: flex; align-items: center; justify-content: center; }
+.gw-viewer-img { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; border-radius: 6px; }
+.gw-source { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.gw-title { font-family: var(--font-instrument-serif), 'Georgia', serif; font-size: 18px; line-height: 1.2; }
+.gw-artist { font-size: 12.5px; opacity: 0.75; }
+.gw-link { padding: 0; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.gw-link:hover { text-decoration: underline; }
+/* A framed text with its copy icon on the top-right corner: the prompt, each variable's value. */
+.gw-values { display: flex; flex-direction: column; gap: 8px; }
+.gw-copybox {
+  position: relative; padding: 10px 38px 10px 12px;
+  border: 1px solid color-mix(in oklab, #fff 22%, transparent); border-radius: 8px;
+  background: color-mix(in oklab, #fff 4%, transparent);
+}
+.gw-copybox--prompt { flex: 1 1 auto; min-height: 80px; overflow: auto; }
+.gw-values { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.gw-made { margin-top: auto; padding-top: 8px; }
+.gw-made + .gw-refs { margin-top: 0; }
+.gw-copybox-label { font-family: var(--font-jetbrains-mono), ui-monospace, monospace; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; opacity: 0.6; margin-bottom: 4px; }
+.gw-copybox-text { font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+.gw-copy {
+  position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; border-radius: 6px;
+  border: 0; background: transparent; color: #fff; opacity: 0.7; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.gw-copy:hover { opacity: 1; background: color-mix(in oklab, #fff 12%, transparent); }
+.gw-act--primary { background: #fff; color: #111; border-color: #fff; }
+.gw-act--primary:hover { background: #f1f1f1; }
+.gw-refs { display: flex; flex-wrap: wrap; gap: 6px; }
+.gw-refs img { width: 56px; height: 56px; object-fit: cover; border-radius: 6px; border: 1px solid color-mix(in oklab, #fff 20%, transparent); }
+.gw-details {
+  flex: 0 0 320px; overflow: auto;
+  border: 1px solid color-mix(in oklab, #fff 14%, transparent); border-radius: 10px;
+  background: color-mix(in oklab, #fff 6%, transparent); color: #fff;
+  padding: 16px; display: flex; flex-direction: column; gap: 12px;
+}
+.gw-close, .gw-nav {
+  position: absolute; z-index: 1; width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid color-mix(in oklab, #fff 20%, transparent); background: rgba(0,0,0,0.45); color: #fff;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.gw-close { top: 16px; right: 16px; }
+.gw-nav { top: 50%; transform: translateY(-50%); }
+.gw-nav--prev { left: 16px; }
+.gw-nav--next { right: 16px; }
+.gw-prompt { margin: 0; font-size: 13px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+.gw-prompt--none { opacity: 0.6; font-style: italic; }
+.gw-made { display: flex; flex-wrap: wrap; gap: 6px; }
+.gw-chip { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.04em; padding: 3px 8px; border: 1px solid color-mix(in oklab, #fff 25%, transparent); border-radius: 999px; opacity: 0.85; }
+.gw-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 2px; }
+.gw-act {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  min-height: 42px; padding: 8px 6px; font-size: 12.5px; font-weight: 500; font-family: var(--font-sans);
+  border: 1px solid color-mix(in oklab, #fff 22%, transparent); border-radius: 8px; background: transparent; color: #fff; cursor: pointer;
+}
+.gw-act:hover { background: color-mix(in oklab, #fff 12%, transparent); }
+.gw-act--danger { color: #ff9a7a; }
+
+@media (max-width: 900px) {
+  .gw-viewer { padding: 0; align-items: stretch; }
+  .gw-viewer-body { flex-direction: column; gap: 0; width: 100%; height: 100%; overflow: auto; }
+  .gw-viewer-img { flex: 0 0 auto; width: 100%; height: auto; max-height: 62vh; border-radius: 0; margin-top: 56px; }
+  .gw-details { flex: 1 0 auto; border-radius: 14px 14px 0 0; border-bottom: 0; }
+  .gw-nav { top: auto; bottom: 16px; transform: none; }
+}

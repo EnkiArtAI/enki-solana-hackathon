@@ -1,0 +1,1047 @@
+/* Settings Page Editorial Styles */
+
+/* The reading column is centered on the viewport, and the WINDOW scrolls:
+   tabs long enough for a scrollbar shifted the whole block ~8px left of the
+   short tabs — "der start of the text varies with the menus" (Kev,
+   2026-08-22). Reserving the gutter only while a settings page is mounted
+   keeps the column pinned without giving every other view the permanent
+   right-hand gutter Kev already rejected for the editor. */
+html:has(.set-page) { scrollbar-gutter: stable; }
+
+/* Send-reminder success state: green with its check, for as long as the 24h
+   cooldown makes another send impossible. Disabled must NOT grey it back to
+   neutral — the colour IS the information. */
+.set-btn.set-btn-sent,
+.set-btn.set-btn-sent:disabled { color: #22a06b; border-color: #22a06b; opacity: 1; display: inline-flex; align-items: center; gap: 5px; }
+.set-remind-next { font-size: 10px; color: var(--enki-ink-3); line-height: 1.4; }
+
+/* A reading column with free space either side; Back sits in the left space,
+   against the column (Kev, 2026-10-13: "links in der freien Fläche, rechts
+   an der UI mit leichtem Abstand"). */
+.set-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 880px) minmax(0, 1fr);
+  align-items: start;
+  min-height: 100vh;
+  background-color: var(--enki-paper);
+  color: var(--enki-ink);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+/* The panels' 880 px column (.ek-page; DEC-499), so its headline stands where theirs do. 1080 px left the section
+   cards mostly empty air (Kev, 2026-07-21). */
+.set-container {
+  grid-column: 2;
+  width: 100%;
+}
+/* The line under the title reserves three lines, so tab switches (varying lengths) never move the tab menu. */
+.set-page .ek-page-sub { min-height: calc(1.55em * 3); }
+
+/* Back: a pill that stays at the top left while the page scrolls under it
+   (Kev, 2026-10-13: "beim scrollen oben links bleibt"). */
+.set-back {
+  grid-column: 1;
+  justify-self: end;
+  position: sticky;
+  top: 12px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  margin: 34px -12px 0 12px;
+  padding: 0 12px 0 9px;
+  border: 1px solid var(--enki-rule);
+  border-radius: 999px;
+  background: var(--enki-paper);
+  color: var(--enki-ink-2);
+  font: 400 12.5px/1 var(--font-sans), sans-serif;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+.set-back:hover { border-color: var(--enki-ink-3); color: var(--enki-ink); }
+/* No free space beside the column: Back goes above it, still sticky. 1300 px = the 880 px column, Back's 72 px either
+   side, the 256 px menu and a scrollbar. */
+@media (max-width: 1299.98px) {
+  .set-page { display: block; }
+  .set-back { margin: 12px 0 -8px 16px; }
+}
+
+/* Custom Navigation Tabs */
+.set-nav {
+  display: flex;
+  gap: 24px;
+  border-bottom: 1px solid var(--enki-rule);
+  padding-bottom: 12px;
+  margin-bottom: 48px;
+  overflow-x: auto;
+  scrollbar-width: none; /* Firefox */
+}
+.set-nav::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}
+
+.set-nav-item {
+  font-size: 13px;
+  color: var(--enki-ink-2);
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  position: relative;
+  transition: color 0.2s;
+}
+.set-nav-item:hover:not(.disabled) {
+  color: var(--enki-ink);
+}
+.set-nav-item.active {
+  color: var(--enki-ink);
+  font-weight: 500;
+}
+.set-nav-item.active::after {
+  content: '';
+  position: absolute;
+  bottom: -13px;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background-color: var(--enki-ink);
+}
+.set-nav-item.disabled {
+  color: var(--enki-ink-3);
+  cursor: not-allowed;
+  position: relative;
+}
+.set-nav-item.crossed::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: -10%;
+  width: 120%;
+  height: 1px;
+  background-color: var(--enki-ink);
+  transform: rotate(-10deg);
+}
+
+
+/* Section Box */
+.set-section {
+  border: 1px solid var(--enki-rule);
+  border-radius: 4px;
+  background: #fff;
+  margin-bottom: 24px;
+  overflow: hidden;
+}
+
+.set-section-header {
+  background: var(--enki-paper);
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--enki-rule);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.set-section-title-wrap {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.set-section-num {
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--enki-ink-3);
+}
+
+.set-section-title {
+  font-family: var(--font-instrument-serif), 'Georgia', serif;
+  font-style: italic;
+  font-size: 20px;
+  color: var(--enki-ink);
+}
+
+.set-section-desc {
+  padding: 16px 24px 0 24px;
+  font-size: 13.5px;
+  color: var(--enki-ink-2);
+  line-height: 1.6;
+}
+
+/* The link buttons keep the rows' 24 px gutter, off the section's border; on a phone they sit centred (Kev,
+   2026-10-26: "put that doch zentral und nicht direkt so komisch links unten angelehnt am rand"). */
+.set-link-wallets { padding: 10px 24px 20px; }
+@media (max-width: 767.98px) {
+  .set-link-wallets { text-align: center; }
+  .set-link-wallets > div { justify-content: center; }
+}
+
+/* List Items */
+.set-list-item {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--enki-rule);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.set-list-item:last-child {
+  border-bottom: none;
+}
+
+.set-item-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  background: #f0f0f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 16px;
+  color: var(--enki-ink-3);
+}
+
+.set-item-content {
+  flex: 1;
+}
+.set-item-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--enki-ink);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.set-item-sub {
+  font-size: 13px;
+  color: var(--enki-ink-3);
+  line-height: 1.5;
+  margin-top: 4px;
+}
+
+.set-badge-dark {
+  background: var(--enki-ink);
+  color: white;
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 1px;
+}
+
+/* Buttons */
+.set-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid transparent;
+}
+.set-btn-dark {
+  background: var(--enki-ink);
+  color: #fff;
+}
+.set-btn-dark:hover {
+  background: var(--enki-ink);
+}
+.set-btn-danger {
+  background: var(--enki-danger);
+  color: var(--enki-danger-ink);
+}
+.set-btn-danger:hover {
+  filter: brightness(1.08);
+}
+.set-btn-outline {
+  background: transparent;
+  border-color: #d0c8be;
+  color: var(--enki-ink);
+}
+.set-btn-outline:hover {
+  background: #f0f0f0;
+}
+.set-btn-outline:disabled {
+  color: var(--enki-ink-3);
+  border-color: var(--enki-rule);
+  cursor: not-allowed;
+}
+
+/* Custom Toggle Switch */
+.set-toggle {
+  width: 38px;
+  height: 20px;
+  background: #e6a5a1; /* pastel red when off (all themes) */
+  border-radius: 4px;
+  position: relative;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.set-toggle-thumb {
+  width: 14px;
+  height: 14px;
+  background: #fff;
+  border-radius: 4px;
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.set-toggle.on {
+  background: #8ed1a9; /* pastel green when on (all themes) */
+}
+.set-toggle.on .set-toggle-thumb {
+  transform: translateX(18px);
+}
+
+.set-toggle.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Tables */
+.set-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+.set-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.set-table th {
+  text-align: left;
+  padding: 12px 24px;
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-size: 10px;
+  color: var(--enki-ink-3);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--enki-rule);
+  background: #fff;
+}
+.set-table td {
+  padding: 16px 24px;
+  font-size: 13px;
+  color: var(--enki-ink);
+  border-bottom: 1px solid var(--enki-rule);
+}
+.set-table tr:last-child td {
+  border-bottom: none;
+}
+.set-table td.money {
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-weight: 500;
+}
+
+/* Save Button Floater */
+.set-save-floater {
+  position: fixed;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  opacity: 0;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  background: var(--enki-ink);
+  color: var(--enki-paper);
+  padding: 12px 24px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+  z-index: 100;
+}
+.set-save-floater.visible {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+}
+.set-save-floater button {
+  background: var(--enki-paper);
+  color: var(--enki-ink);
+  border: none;
+  padding: 6px 16px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.set-save-floater span {
+  font-size: 14px;
+}
+
+/* Soft (slightly tinted) rows — replaces hardcoded cream backgrounds that were
+   unreadable in dark mode. */
+.set-soft { background: #f8f6f1; }
+.dark .set-soft { background: var(--enki-paper-3); }
+
+/* Settings tab content: slim slide-in when switching reiter (left/right). */
+.set-tabpane {
+  animation-duration: 0.19s;
+  animation-timing-function: cubic-bezier(0.33, 0, 0.2, 1);
+  animation-fill-mode: both;
+  will-change: transform, opacity;
+}
+.set-slide-r { animation-name: set-tab-r; }
+.set-slide-l { animation-name: set-tab-l; }
+@keyframes set-tab-r { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
+@keyframes set-tab-l { from { opacity: 0; transform: translateX(-18px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .set-tabpane { animation: none; } }
+
+/* Heartbeat focus — pulses around a whole section to pull the eye there
+   (sidebar balance chip → Payment "Add money & cash out"). */
+.set-heartbeat {
+  border-radius: 6px;
+  animation: set-heartbeat 1.3s ease-out 3;
+}
+@keyframes set-heartbeat {
+  0%   { box-shadow: 0 0 0 0 rgba(224, 122, 57, 0.55); }
+  45%  { box-shadow: 0 0 0 12px rgba(224, 122, 57, 0); }
+  55%  { box-shadow: 0 0 0 3px rgba(224, 122, 57, 0.4); }
+  100% { box-shadow: 0 0 0 16px rgba(224, 122, 57, 0); }
+}
+/* Red variant — for the "no recovery" banner focusing the Guardians area. */
+.set-heartbeat--red {
+  border-radius: 6px;
+  animation: set-heartbeat-red 1.3s ease-out 3;
+  outline: 2px solid rgba(179, 39, 30, 0.85);
+  outline-offset: 2px;
+}
+@keyframes set-heartbeat-red {
+  0%   { box-shadow: 0 0 0 0 rgba(179, 39, 30, 0.6); }
+  45%  { box-shadow: 0 0 0 12px rgba(179, 39, 30, 0); }
+  55%  { box-shadow: 0 0 0 3px rgba(179, 39, 30, 0.45); }
+  100% { box-shadow: 0 0 0 16px rgba(179, 39, 30, 0); }
+}
+
+/* Status badges — theme-aware replacements for inline hex badges. */
+.set-badge-good {
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(31, 138, 91, 0.1);
+  color: var(--enki-green);
+}
+.set-badge-warn {
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(201, 154, 56, 0.18);
+  color: var(--enki-ink-2);
+}
+.dark .set-badge-warn { color: #e3b957; }
+.set-badge-muted {
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(130, 130, 130, 0.16);
+  color: var(--enki-ink-3);
+}
+
+/* Secondary button had no light-mode rule at all (text was unreadable on some
+   themes) — give it a real base style; the .dark override below still applies. */
+.set-btn-secondary {
+  background: #efece5;
+  color: var(--enki-ink);
+  border-color: #e0dcd2;
+}
+.set-btn-secondary:hover { background: #e6e2d8; }
+.dark .set-btn-secondary:hover { background: var(--enki-paper-2); }
+
+/* ── Payment tab ── */
+.set-holdings-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 28px 24px 22px;
+  border-bottom: 1px solid var(--enki-rule);
+}
+/* Three money actions stacked beside the balance (Kev, 2026-10-14); the picked
+   one unfolds in .set-money-body below. */
+.set-hero-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 0 0 200px;
+}
+.set-act {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 14px;
+  border: 1px solid var(--enki-rule);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--enki-ink);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.set-act:hover:not(:disabled) { border-color: var(--enki-ink-3); }
+.set-act--on { border-color: var(--enki-ink); background: color-mix(in oklab, var(--enki-ink) 5%, transparent); }
+.set-deposit .set-list-item { padding-left: 0; padding-right: 0; }
+@media (max-width: 540px) {
+  .set-hero-actions { flex-basis: 100%; }
+}
+.set-holdings-label {
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--enki-ink-3);
+  margin-bottom: 6px;
+}
+.set-holdings-amount {
+  font-family: var(--font-instrument-serif), 'Georgia', serif;
+  font-size: 52px;
+  line-height: 1.05;
+  color: var(--enki-ink);
+}
+.set-holdings-amount span { font-size: 26px; color: var(--enki-ink-3); }
+.set-earn-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0;
+  border-top: 1px solid var(--enki-rule);
+}
+.set-earn-cell {
+  padding: 16px 24px;
+  border-right: 1px solid var(--enki-rule);
+}
+.set-earn-cell:last-child { border-right: none; }
+.set-earn-num {
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--enki-ink);
+}
+.set-earn-label {
+  font-size: 12px;
+  color: var(--enki-ink-3);
+  margin-top: 2px;
+}
+
+/* Wallet explainer — the 10th-grader block under the balance hero. Reads as
+   a deliberate info card, sized for actual reading. */
+.set-wallet-note {
+  margin: 16px 24px 18px;
+  padding: 14px 18px;
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--enki-ink) 4%, transparent);
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--enki-ink);
+  max-width: 62ch;
+}
+.set-wallet-note b { font-weight: 600; }
+
+/* Move money — big square Add money / Pay out tiles; picking one swaps the
+   same area to equally square provider tiles (Coinbase left, MoonPay right). */
+.set-money-body {
+  /* Center the money controls in the card — no dead air to one side. */
+  max-width: 588px;
+  margin: 0 auto;
+  padding: 18px 24px 22px;
+}
+.set-sq-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.set-prov-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  text-align: center;
+  aspect-ratio: 1;
+  padding: 18px 14px;
+  border: 1px solid var(--enki-rule);
+  border-radius: 14px;
+  background: transparent;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+/* Narrow screens: a strict square can't hold the copy — let both tiles share
+   the tallest content height instead so the pair stays even. */
+@media (max-width: 540px) {
+  .set-prov-card {
+    aspect-ratio: auto;
+    height: 100%;
+    min-height: 150px;
+  }
+}
+.set-prov-wrap { animation: set-fade 0.18s ease-out; }
+@keyframes set-fade {
+  from { opacity: 0; transform: translateY(-3px); }
+  to   { opacity: 1; transform: none; }
+}
+.set-prov-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 12px;
+}
+.set-back-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--enki-rule);
+  background: transparent;
+  color: var(--enki-ink-2, var(--enki-ink));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.set-back-btn:hover { border-color: var(--enki-ink-3); }
+.set-prov-card:hover { border-color: var(--enki-ink-3); }
+.set-prov-card--last,
+.set-prov-card--last:hover {
+  border-color: var(--enki-ember, #c96838);
+  background: rgba(var(--ember-rgb, 201, 104, 56), 0.05);
+}
+.set-prov-card--off { opacity: 0.5; cursor: not-allowed; }
+.set-prov-card--off:hover { border-color: var(--enki-rule); }
+.set-prov-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
+  color: #fff;
+  font-weight: 700;
+  font-size: 19px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-bottom: 2px;
+}
+.set-prov-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--enki-ink);
+}
+.set-prov-chip {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--enki-ember, #c96838);
+  background: rgba(var(--ember-rgb, 201, 104, 56), 0.12);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+.set-prov-chip--off {
+  color: var(--enki-ink-3);
+  background: color-mix(in oklab, var(--enki-ink) 6%, transparent);
+}
+.set-prov-sub { font-size: 12.5px; color: var(--enki-ink-3); line-height: 1.5; }
+.set-footnote {
+  margin-top: 12px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--enki-ink-3);
+}
+
+/* Collapsible networks accordion */
+.set-networks summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--enki-ink);
+}
+.set-networks summary::-webkit-details-marker { display: none; }
+.set-networks summary .set-chevron { transition: transform 0.2s; color: var(--enki-ink-3); }
+.set-networks[open] summary .set-chevron { transform: rotate(180deg); }
+
+/* Check Circle Icon */
+.set-check-circle {
+  width: 20px;
+  height: 20px;
+  background: var(--enki-ink);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  margin-right: 16px;
+  margin-top: 2px;
+}
+
+/* ── Billing: pay / deposit modals (ported from pr45) ── */
+.set-pay-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(20, 18, 16, 0.5);
+  backdrop-filter: blur(3px);
+}
+.set-pay-card {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  background: #fcfbf8;
+  border: 1px solid #e8e5de;
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+.set-pay-card--qr {
+  max-width: 340px;
+  padding: 28px 22px 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+.set-pay-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid #e8e5de;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #4a4540;
+}
+.set-qr-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-outfit), "Outfit", sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  color: #1c1a18;
+}
+.set-qr-frame {
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #e8e5de;
+  border-radius: 12px;
+  line-height: 0;
+}
+.set-qr-addr {
+  width: 100%;
+  word-break: break-all;
+  text-align: center;
+  font-family: monospace;
+  font-size: 12px;
+  color: #5a5550;
+  background: #f5f3ee;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.set-qr-warn {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: #a06a2a;
+  text-align: center;
+}
+
+/* ── Manual amount entry ── */
+.set-amount-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: #fff;
+  border: 1px solid #e2ded6;
+  border-radius: 10px;
+  padding: 0 12px;
+  height: 40px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.set-amount-wrap:focus-within {
+  border-color: #1c1a18;
+  box-shadow: 0 0 0 3px rgba(28, 26, 24, 0.08);
+}
+.set-amount-wrap.is-invalid {
+  border-color: #d8a08f;
+  box-shadow: 0 0 0 3px rgba(180, 69, 47, 0.08);
+}
+.set-amount-prefix {
+  font-family: var(--font-outfit), "Outfit", sans-serif;
+  font-weight: 600;
+  font-size: 16px;
+  color: #1c1a18;
+}
+.set-amount-input {
+  width: 92px;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: var(--font-outfit), "Outfit", sans-serif;
+  font-weight: 600;
+  font-size: 16px;
+  color: #1c1a18;
+  -moz-appearance: textfield;
+}
+.set-amount-input::-webkit-outer-spin-button,
+.set-amount-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* ── Fiat (dollars) checkout — Stripe ── */
+.set-pay-card--fiat {
+  max-width: 380px;
+  max-height: min(90vh, 680px);
+  padding: 28px 22px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.set-pay-card--fiat .set-fiat-head,
+.set-pay-card--fiat .set-fiat-foot,
+.set-pay-card--fiat .set-fiat-error {
+  flex: 0 0 auto;
+}
+.set-fiat-head {
+  text-align: center;
+}
+.set-fiat-amount {
+  font-family: var(--font-outfit), "Outfit", sans-serif;
+  font-weight: 700;
+  font-size: 34px;
+  line-height: 1.05;
+  color: #1c1a18;
+}
+.set-fiat-sub {
+  margin-top: 4px;
+  font-size: 13px;
+  color: #6b6660;
+}
+.set-fiat-body {
+  flex: 1 1 auto;
+  min-height: 48px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  margin: 0 -4px;
+  padding: 2px 4px;
+}
+.set-fiat-wallet-btn {
+  width: 100%;
+  justify-content: center;
+  height: 46px;
+  font-size: 14px;
+  gap: 8px;
+}
+.set-fiat-loading,
+.set-fiat-error,
+.set-fiat-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  font-size: 13px;
+  text-align: center;
+}
+.set-fiat-loading {
+  color: #6b6660;
+  padding: 12px 0;
+}
+.set-fiat-error {
+  color: #b4452f;
+  background: #fbeae6;
+  border-radius: 10px;
+  padding: 12px 14px;
+  line-height: 1.45;
+}
+.set-fiat-note {
+  color: #a06a2a;
+  margin-bottom: 10px;
+}
+.set-fiat-foot {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: #8a857e;
+}
+.set-fiat-success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  padding: 12px 6px 4px;
+}
+.set-fiat-success-icon {
+  color: #1f9d55;
+  animation: set-pop 0.45s cubic-bezier(0.17, 0.89, 0.32, 1.28) both;
+}
+@keyframes set-pop {
+  0% { transform: scale(0.3); opacity: 0; }
+  60% { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.set-fiat-success-title {
+  font-family: var(--font-outfit), "Outfit", sans-serif;
+  font-weight: 700;
+  font-size: 24px;
+  color: #1c1a18;
+}
+.set-fiat-success-sub {
+  font-size: 13px;
+  color: #6b6660;
+  margin-bottom: 8px;
+}
+.set-spin {
+  animation: set-spin 0.8s linear infinite;
+}
+@keyframes set-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Settings dark-mode overrides (ported from pr45) ── */
+.dark .set-section { background: var(--enki-paper-2); }
+
+.dark .set-item-icon {
+  background: var(--enki-paper-3);
+  color: var(--enki-ink-2);
+}
+
+/* Primary "dark" button: --enki-ink flips to near-white in dark mode, so a
+   white label became invisible. Use --enki-paper for the label so it's a
+   light button with dark text (the correct inverted look). */
+.dark .set-btn-dark { color: var(--enki-paper); }
+
+.dark .set-btn-outline { border-color: var(--enki-rule); color: var(--enki-ink); }
+.dark .set-btn-outline:hover { background: var(--enki-paper-3); }
+.dark .set-btn-secondary {
+  background: var(--enki-paper-3);
+  color: var(--enki-ink);
+  border-color: var(--enki-rule);
+  /* Renders the native <select> dropdown popup dark (no white OS border). */
+  color-scheme: dark;
+}
+
+/* off/on colors stay the same pastels in dark mode; only the thumb adapts */
+.dark .set-toggle-thumb { background: #fbfaf7; }
+
+.dark .set-table th { background: var(--enki-paper-2); }
+
+/* ── Billing dark-mode overrides ── */
+.dark .set-amount-wrap { background: var(--enki-paper-3); border-color: var(--enki-rule); }
+.dark .set-amount-wrap:focus-within {
+  border-color: var(--enki-ink);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08);
+}
+.dark .set-amount-prefix,
+.dark .set-amount-input { color: var(--enki-ink); }
+.dark .set-amount-input::placeholder { color: var(--enki-ink-3); }
+.dark .set-pay-card { background: var(--enki-paper-2); border-color: var(--enki-rule); }
+.dark .set-pay-close { background: var(--enki-paper-3); border-color: var(--enki-rule); color: var(--enki-ink); }
+.dark .set-qr-head { color: var(--enki-ink); }
+.dark .set-qr-frame { border-color: var(--enki-rule); }
+.dark .set-qr-addr { background: var(--enki-paper-3); color: var(--enki-ink-2); }
+.dark .set-fiat-amount,
+.dark .set-fiat-success-title { color: var(--enki-ink); }
+.dark .set-fiat-sub,
+.dark .set-fiat-success-sub,
+.dark .set-fiat-loading { color: var(--enki-ink-3); }
+
+/* ── Send USDC ── */
+.set-send {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 24px 20px;
+}
+.set-send-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.set-send-input {
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid #e2ded6;
+  border-radius: 10px;
+  background: #fff;
+  color: #1c1a18;
+  font-family: monospace;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.set-send-input:focus {
+  border-color: #1c1a18;
+  box-shadow: 0 0 0 3px rgba(28, 26, 24, 0.08);
+}
+.set-send-input.is-invalid {
+  border-color: #d8a08f;
+  box-shadow: 0 0 0 3px rgba(180, 69, 47, 0.08);
+}
+.set-send-amount {
+  display: flex;
+  align-self: flex-start;
+  gap: 8px;
+}
+.set-send-amount .set-amount-input { width: 132px; }
+.set-send-amount .set-amount-prefix { font-size: 13px; color: var(--enki-ink-3); }
+.set-send-max {
+  border: 1px solid #d0c8be;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--enki-ink);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+.set-send-max:hover { background: #f0f0f0; }
+.set-send-max:disabled { color: var(--enki-ink-3); border-color: var(--enki-rule); cursor: not-allowed; }
+.set-send-hint { font-size: 12px; color: var(--enki-ink-3); }
+.set-send-input.is-invalid + .set-send-hint { color: #b4452f; }
+.set-send-mono { font-family: monospace; }
+.set-send-review {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 8px 18px;
+  margin: 0;
+  font-size: 13px;
+}
+.set-send-review dt { color: var(--enki-ink-3); }
+.set-send-review dd { margin: 0; color: var(--enki-ink); }
+.set-send-cta { align-self: flex-start; min-width: 140px; }
+.set-send .set-fiat-error { justify-content: flex-start; text-align: left; flex-wrap: wrap; }
+.set-send-check { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; color: inherit; text-decoration: underline; }
+
+.dark .set-send-input { background: var(--enki-paper-3); border-color: var(--enki-rule); color: var(--enki-ink); }
+.dark .set-send-input:focus { border-color: var(--enki-ink); box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08); }
+.dark .set-send-max { border-color: var(--enki-rule); }
+.dark .set-send-max:hover { background: var(--enki-paper-3); }

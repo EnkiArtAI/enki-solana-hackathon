@@ -1,0 +1,135 @@
+/* Create > Video (vg-): what the video composer has beyond Remix's frame (remix.css: the column, its drop zones and
+   foot, History beside it), after Sume's video page (Kev, 2026-10-30), in Enki's tokens. */
+
+/* The column a bit wider than Remix's 320 px where the window has room (Kev, 2026-10-30: "vergrößere die breite von
+   diesem settings window bei video generatoren ein stück"): 384 px from a 1280 px window. */
+.vg { --rx-col: clamp(320px, 30vw, 384px); }
+
+/* ── The model card: its name and one line, Change at its right ── */
+.vg-model {
+  display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+  padding: 12px 12px 12px 14px; border: 1px solid var(--enki-rule); border-radius: 14px; background: var(--enki-paper-2);
+}
+/* Every model's name and line in one cell, the others hidden (.rx-both): the card is as tall as the longest at this width,
+   so a switch never moves what is below (Kev, 2026-10-30: "i also dont like how the UI changes when selecting the video
+   generators, as the text pushes it runter. das sollte nicht sein"). */
+.vg-model-text { display: grid; gap: 2px; flex: 1; min-width: 0; }
+.vg-model-pair { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.vg-model-name { font-size: 14px; font-weight: 600; color: var(--enki-ink); }
+.vg-model-line { font-size: 12px; line-height: 1.4; color: var(--enki-ink-3); text-wrap: pretty; }
+
+/* ── Start and end frame side by side ── */
+.vg-frames { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; flex-shrink: 0; }
+.vg-pick { min-height: 104px; }
+.vg-pick:disabled { opacity: 0.45; cursor: not-allowed; }
+.vg-frame[data-filled] { overflow: hidden; }
+.vg-frame-img { display: block; width: 100%; height: 104px; object-fit: cover; border-radius: 12px; }
+.rx-photos .kit-ref-img video { display: block; width: 100%; height: 100%; object-fit: cover; }
+/* Held references as tall as the frames (104 px less the zone's 12 px padding twice), in one row that scrolls sideways
+   for any count, Add at its end in sight: a switch between a reference and a frame model moves nothing below (review
+   2026-10-30: from five references a second row moved the prompt 32 px on the switch). */
+.vg .rx-photos { flex-wrap: nowrap; align-items: center; min-height: 80px; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+.vg .rx-photos .kit-ref-add { position: sticky; right: 0; background: var(--enki-paper-2); }
+
+/* The swap between the two frames (Kev, 2026-10-30: "wo ich start und end image responsively miteinander switchen
+   kann"): a round button on the gap, the pictures sliding in from the end they left, still where motion is reduced. */
+.vg-swap {
+  position: absolute; left: 50%; top: 50%; z-index: 1; translate: -50% -50%;
+  display: grid; place-items: center; width: 30px; height: 30px; padding: 0;
+  border: 1px solid var(--enki-rule); border-radius: 50%; background: var(--enki-paper); color: var(--enki-ink-2);
+  box-shadow: 0 1px 3px color-mix(in oklab, var(--enki-ink) 14%, transparent); cursor: pointer; transition: border-color 0.14s, color 0.14s;
+}
+.vg-swap:hover:not(:disabled) { border-color: var(--enki-ink-2); color: var(--enki-ink); }
+/* Shut, it lets a press through to the picker under it (review 2026-10-30: a click 10 px into an empty picker opened
+   nothing). On a touch screen it sits 10 px low, so its 44 px box clears the start frame's x and the box around that
+   (review 2026-10-30: a tap there swapped instead of removing). */
+.vg-swap:disabled { opacity: 0.45; pointer-events: none; }
+@media (pointer: coarse) { .vg-swap { top: calc(50% + 10px); } }
+.vg-frame-img[data-moved] { animation: vg-swap-in 0.24s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.vg-frame-img[data-moved="start"] { --vg-from: 36%; }
+.vg-frame-img[data-moved="end"] { --vg-from: -36%; }
+@keyframes vg-swap-in { from { transform: translateX(var(--vg-from)); opacity: 0.35; } }
+
+/* The place kept under the media for whichever sentence holds, a refusal first, as tall as the longest sentence takes
+   (bench 2026-10-30: two lines at the 264, 343 and 358 px it is wide at 1024, 1440 and 390), so its coming or going
+   moves nothing (Kev, 2026-10-30, the model switch above). */
+.vg-note { min-height: calc(2 * 1.45 * 12px); margin-top: -4px; font-size: 12px; line-height: 1.45; flex-shrink: 0; }
+.vg-note > p { margin: 0; line-height: inherit; }
+
+.vg-prompt-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: -4px; }
+.vg-make { font-size: 12.5px; }
+
+/* ── Length in a row of its own, its label in a column of its own; Omni's fixed line as tall as the slider (44 px on touch) ── */
+.vg-rows { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
+.vg-row { display: grid; grid-template-columns: 88px minmax(0, 1fr); align-items: center; gap: 10px; min-height: 36px; }
+/* Aspect, Resolution and Bitrate in one row under Length, in equal cells, two where the model has no Bitrate (Kev,
+   2026-10-30: "bei video generatoren, aspect ratio, resolution und bitrate kann in einer reihe platziert werden um platz
+   zu sparen, also alle 3 einstellungen in 1 reihe"): each pill as wide as its cell, its words cut short, the use line
+   first, never past the column. */
+.vg-set { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; }
+.vg-cell { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.vg-set .kit-pill { justify-content: flex-start; width: 100%; min-width: 0; overflow: hidden; }
+.vg-set .kit-pill > span:not(.kit-caret) { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.vg-set .kit-caret { margin-left: auto; }
+.vg-fixed { font-size: 12.5px; line-height: 1.4; color: var(--enki-ink-2); }
+/* Length's seconds, a number to type into: underlined until it has focus. */
+.vg-len-num { display: inline-flex; align-items: baseline; gap: 1px; cursor: text; }
+.vg-len-num input {
+  width: 3.4ch; height: 28px; padding: 0 3px; border: 1px solid transparent; border-bottom-color: var(--enki-rule); border-radius: 0;
+  background: none; color: inherit; font: inherit; font-size: 13px; text-align: right;
+}
+.vg-len-num input:hover { border-bottom-color: var(--enki-ink-3); }
+.vg-len-num input:focus { border-color: var(--enki-ink-2); border-radius: 6px; outline: none; }
+/* A thumb's 44 px, as the kit's touch controls have it (.kit-field-slider), so a tap meant for the seconds misses the slider. */
+@media (pointer: coarse) {
+  .vg-row { min-height: 44px; }
+  .vg-len-num { min-width: 44px; }
+  .vg-len-num input { height: 44px; font-size: 16px; }
+}
+
+/* ── How it works: the three cards across the whole area, then the way to Explore's videos ── */
+/* Three in a row where each has 220 px, else one under the other at the area's width: never two and one left alone
+   (review 2026-10-30: at 1024 px the third sat under the first, an empty cell beside it). */
+.vg .rx-lib { container-type: inline-size; }
+.vg-how { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; margin: 18px 0 0; padding: 0; list-style: none; }
+@container (min-width: 692px) { .vg-how { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+/* Larger again (Kev, 2026-10-30: "increase the how it works texts at video gen even further"): 40 / 21 px on a desktop. */
+.vg-how-card { display: flex; flex-direction: column; gap: 14px; padding: 28px 30px 30px; border: 1px solid var(--enki-rule); border-radius: 14px; background: var(--enki-paper); }
+.vg-how-card .kit-label { font-size: 13px; }
+.vg-how-card h3 { margin: 0; font-size: 40px; line-height: 1.1; }
+.vg-how-card p { margin: 0; font-size: 21px; line-height: 1.45; color: var(--enki-ink-2); text-wrap: pretty; }
+.vg-inspire {
+  position: relative; isolation: isolate; display: flex; flex-direction: column; justify-content: center; gap: 6px;
+  min-height: 200px; margin-top: 16px; padding: 28px 32px; overflow: hidden; border-radius: 14px;
+  background: var(--enki-stage); color: var(--enki-on-stage); text-decoration: none;
+}
+.vg-inspire-img { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; object-position: 50% 40%; transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.vg-inspire::before {
+  content: ""; position: absolute; inset: 0; z-index: -1;
+  background: linear-gradient(90deg, color-mix(in oklab, var(--enki-stage) 88%, transparent) 0%, color-mix(in oklab, var(--enki-stage) 40%, transparent) 60%, transparent 100%);
+}
+.vg-inspire .kit-title { max-width: 18ch; color: inherit; font-size: 32px; line-height: 1.1; }
+.vg-inspire-go { font-size: 15px; font-weight: 500; }
+.vg-inspire:hover .vg-inspire-img { transform: scale(1.03); }
+
+@media (max-width: 767.98px) {
+  .vg-how-card { padding: 22px 22px 24px; }
+  .vg-how-card h3 { font-size: 30px; }
+  .vg-how-card p { font-size: 18px; }
+  .vg-inspire { min-height: 160px; padding: 22px 20px; }
+  .vg-inspire .kit-title { font-size: 26px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vg-inspire-img { transition: none; }
+  .vg-frame-img[data-moved] { animation: none; }
+}
+
+/* ── History: the buyer's videos, under way or made ── */
+.vg-jobs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; list-style: none; margin: 0; padding: 0; align-items: start; }
+@media (max-width: 640px) { .vg-jobs { grid-template-columns: minmax(0, 1fr); } }
+.vg-job { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 10px; border: 1px solid var(--enki-rule); border-radius: 14px; background: var(--enki-paper-2); }
+.vg-job-video { display: block; width: 100%; border-radius: 10px; background: var(--enki-stage); }
+.vg-job-wait { display: grid; place-items: center; aspect-ratio: 16 / 9; border-radius: 10px; background: var(--enki-stage); }
+.vg-job-line { display: flex; flex-direction: column; gap: 2px; margin: 0; font-size: 12px; line-height: 1.4; color: var(--enki-ink-3); text-wrap: pretty; }
+/* The consent box: its words wrap, the switch keeps its place. */
+.vg-consent { gap: 12px; font-size: 12px; line-height: 1.4; color: var(--enki-ink-3); }

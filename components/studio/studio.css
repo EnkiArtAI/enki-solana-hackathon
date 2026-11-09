@@ -1,0 +1,297 @@
+/* ════════════════ Studio (Kev, 2026-10-30: "help me build that as the super responsive and genius UX designer that
+   you are, in the style of enki") ════════════════
+   Projects, their pictures, characters, styles, master prompts and content pieces: the panel's pages, the popups, the
+   strip over Create's composer, the project's tiles in the reference picker and "Keep in" in the viewer. Enki's tokens
+   only, the kit's type (kit-label, kit-title); the phone is the shell's edge (767.98 px). */
+
+/* ── Buttons ── */
+.st-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px; flex-shrink: 0;
+  height: 38px; padding: 0 16px; border: 1px solid var(--enki-rule); border-radius: 999px;
+  background: var(--enki-paper); color: var(--enki-ink); font: 600 13px/1 var(--font-sans), sans-serif; white-space: nowrap; cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+.st-btn:hover:not(:disabled) { border-color: var(--enki-ink-3); }
+.st-btn:disabled, .st-btn[aria-disabled] { background: var(--enki-paper-3); color: var(--enki-ink-2); cursor: default; }
+.st-btn--cta { border-color: transparent; background: var(--cta-bg); color: var(--cta-ink); box-shadow: 0 6px 16px rgba(var(--ember-rgb), 0.22); }
+.st-btn--cta:disabled, .st-btn--cta[aria-disabled] { opacity: 1; background: var(--enki-paper-3); color: var(--enki-ink-2); box-shadow: none; }
+.st-btn--cta:hover:not(:disabled):not([aria-disabled]) { transform: translateY(-1px); filter: brightness(1.04); border-color: transparent; }
+.st-btn--quiet { border-color: transparent; background: none; color: var(--enki-ink-3); }
+.st-btn--quiet:hover:not(:disabled) { border-color: transparent; color: var(--enki-ink); }
+.st-btn--small { height: 32px; padding: 0 12px; font-size: 12px; }
+
+/* ── The popups: the shell's scrim, a 640 px card, head / scrolling body / staying foot ── */
+.st-scrim { z-index: 300; }
+.st-dialog {
+  display: flex; flex-direction: column; width: 100%; max-width: 640px; max-height: min(780px, calc(100dvh - 48px));
+  background: var(--enki-paper); color: var(--enki-ink); border: 1px solid var(--enki-rule); border-radius: 18px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4); overflow: hidden; animation: ek-pop 0.26s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.st-dialog-head { display: flex; align-items: flex-start; gap: 12px; padding: 20px 22px 14px; }
+.st-dialog-titles { flex: 1; min-width: 0; }
+.st-marks { margin: 0 0 6px; }
+.st-marks [data-on] { color: var(--enki-ink); }
+.st-dialog-title { margin: 0; font-size: 30px; font-style: italic; line-height: 1.1; }
+.st-dialog-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 16px; padding: 6px 22px 22px; }
+.st-dialog-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 14px 22px; border-top: 1px solid var(--enki-rule-2); background: var(--enki-paper);
+}
+
+/* ── Fields ── */
+.st-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.st-field-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.st-count { font: 500 11px/1 var(--font-mono), monospace; color: var(--enki-ink-3); }
+/* The field itself, .st-input, is the app's one field in kit-base.css (DEC-2026-11-08-19). */
+.st-area { resize: none; }
+.st-err { font-size: 12.5px; line-height: 1.4; color: var(--enki-danger); }
+.st-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.st-pair .kit-menu, .st-pair .kit-pill { width: 100%; justify-content: space-between; }
+.st-line { margin: 0; font-size: 13px; line-height: 1.5; color: var(--enki-ink-3); }
+.st-note { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--enki-ink-3); }
+
+/* ── Step 2: pictures in, a sheet picked ── */
+.st-step { display: flex; flex-direction: column; gap: 10px; }
+.st-step + .st-step { padding-top: 16px; border-top: 1px solid var(--enki-rule-2); }
+.st-step > .st-btn { align-self: flex-start; }
+.st-step-head { display: flex; align-items: baseline; justify-content: space-between; }
+.st-drop {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; height: 120px;
+  border: 1.5px dashed var(--enki-rule); border-radius: 14px; background: var(--enki-paper-2); color: var(--enki-ink-3);
+  font-size: 13px; cursor: pointer; transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.st-drop:hover:not(:disabled), .st-drop[data-over] { border-color: var(--enki-ember); color: var(--enki-ink); background: rgba(var(--ember-rgb), 0.06); }
+.st-drop:disabled { opacity: 0.5; cursor: default; }
+.st-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.st-tile { position: relative; flex-shrink: 0; }
+.st-tile-pic {
+  display: block; width: 100%; aspect-ratio: 1; padding: 0; border: 0; border-radius: 12px; overflow: hidden; background: var(--enki-paper-3); cursor: zoom-in;
+}
+.st-tile-pic:disabled { cursor: default; }
+.st-tile-pic img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.st-tile[data-pending] { opacity: 0.45; }
+.st-tile[data-pending] .st-tile-pic { cursor: progress; }
+/* A ×: on hover where the pointer hovers, always on touch (as the picker's, .iv-rp-del). */
+.st-x {
+  position: absolute; top: 6px; right: 6px; z-index: 2; display: flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%;
+  background: color-mix(in oklab, var(--enki-stage) 72%, transparent); color: var(--enki-on-stage); cursor: pointer;
+  opacity: 0; transition: opacity 0.15s;
+}
+:is(.st-tile, .st-char-pic, .st-item):hover .st-x, .st-x:focus-visible { opacity: 1; }
+@media (hover: none) { .st-x { opacity: 1; } }
+.st-x--inline { position: static; opacity: 1; width: 20px; height: 20px; }
+
+.st-sheets { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.st-sheet-search { width: 100%; margin-bottom: 12px; }
+.st-sheet { display: flex; flex-direction: column; gap: 8px; padding: 0; border: 0; background: none; color: var(--enki-ink); text-align: left; cursor: pointer; }
+.st-sheet-pic { display: block; aspect-ratio: 3 / 4; border-radius: 12px; overflow: hidden; background: var(--enki-paper-3); transition: box-shadow 0.15s, transform 0.15s; }
+.st-sheet-pic img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.st-sheet:hover .st-sheet-pic { box-shadow: 0 0 0 2px var(--enki-ink); }
+/* Picked: the ring the reference picker's tiles wear (.iv-rp-item[data-on]). */
+.st-sheet[data-on] .st-sheet-pic { box-shadow: 0 0 0 3px var(--enki-photo-ring); }
+.st-sheet-title { font-size: 13px; font-weight: 600; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* ── The panel's pages ── */
+.st-page { max-width: 1120px; }
+.st-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 72px 24px; text-align: center; color: var(--enki-ink-3); }
+.st-empty .kit-title { margin: 4px 0 0; font-size: 30px; font-style: italic; }
+.st-empty p { max-width: 420px; margin: 0 0 8px; font-size: 13.5px; line-height: 1.55; }
+.st-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@media (min-width: 900px) { .st-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 1200px) { .st-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.st-card {
+  display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 0; border: 0; background: none; color: var(--enki-ink);
+  text-align: left; cursor: pointer; transition: transform 0.2s ease;
+}
+.st-card:hover { transform: translateY(-4px); }
+.st-cover {
+  display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 2px; aspect-ratio: 4 / 3; margin-bottom: 6px;
+  border-radius: 14px; overflow: hidden; background: var(--enki-paper-2); color: var(--enki-ink-3);
+  transition: box-shadow 0.2s ease;
+}
+.st-card:hover .st-cover { box-shadow: 0 16px 32px color-mix(in oklab, var(--enki-stage) 10%, transparent); }
+.st-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.st-cover:not([data-n="0"]) > svg { display: none; }
+.st-cover[data-n="0"] { place-items: center; grid-template: 1fr / 1fr; }
+.st-cover[data-n="1"] img { grid-area: 1 / 1 / 3 / 3; }
+.st-cover[data-n="2"] img { grid-row: 1 / 3; }
+.st-cover[data-n="3"] img:first-child { grid-row: 1 / 3; }
+.st-card-name { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-card-meta { display: flex; align-items: center; gap: 6px; font: 500 11px/1.3 var(--font-mono), monospace; color: var(--enki-ink-3); }
+.st-dots { display: inline-flex; gap: 3px; }
+.st-dots > span { flex-shrink: 0; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12); }
+
+.st-head-acts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.st-chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 1px solid var(--enki-rule); border-radius: 999px;
+  background: var(--enki-paper); color: var(--enki-ink-2); font-size: 12.5px; font-weight: 500; text-decoration: none; cursor: pointer;
+}
+.st-chip:hover { border-color: var(--enki-ink-3); color: var(--enki-ink); }
+a.st-chip svg { transform: rotate(-45deg); }
+.st-more .kit-caret { display: none; }
+.st-more .kit-pill { width: 38px; padding: 0; justify-content: center; }
+
+.st-sec { margin-top: 30px; }
+/* The project's kit in one line, a part opening below it (Kev, 2026-10-30: "in one line that i can then responsively
+   open and see all of them"); Content under it is the page's main area. */
+.st-kit { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 24px; }
+.st-kit-tab {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; padding: 12px 14px;
+  border: 1px solid var(--enki-rule); border-radius: 14px; background: var(--enki-paper); color: var(--enki-ink);
+  text-align: left; cursor: pointer; transition: border-color 0.15s, background 0.15s;
+}
+.st-kit-tab:hover { border-color: var(--enki-ink-3); }
+.st-kit-tab[aria-expanded="true"] { border-color: var(--enki-ember); background: rgba(var(--ember-rgb), 0.05); }
+.st-kit-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; }
+.st-kit-top svg { flex-shrink: 0; color: var(--enki-ink-3); transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1); }
+.st-kit-tab[aria-expanded="true"] .st-kit-top svg { transform: rotate(90deg); }
+.st-kit-count { font: 500 11px/1 var(--font-mono), monospace; color: var(--enki-ink-3); }
+.st-kit-peek { display: flex; align-items: center; gap: 4px; min-width: 0; height: 28px; }
+.st-kit-peek img { width: 28px; height: 28px; border-radius: 7px; object-fit: cover; }
+.st-kit-name { overflow: hidden; font-size: 12px; color: var(--enki-ink-2); white-space: nowrap; text-overflow: ellipsis; }
+.st-kit-panel { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.22s cubic-bezier(0.4, 0, 0.2, 1); }
+.st-kit-panel[data-open] { grid-template-rows: 1fr; }
+/* Wide enough for the rows' sideways bleed (.st-row), so the fold clips nothing they show. */
+.st-kit-in { min-height: 0; margin: 0 -28px; padding: 0 28px; overflow: hidden; }
+/* The tab above says which part and how many: no second heading inside. */
+.st-kit-in .st-sec-head { display: none; }
+.st-sec-head { margin: 0 0 12px; font-weight: 400; }
+/* A row of tiles sliding sideways, snapping, no bar. */
+.st-row {
+  display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none;
+  margin: 0 -28px; padding: 6px 28px 10px; scroll-padding: 0 28px;
+}
+.st-row::-webkit-scrollbar { display: none; }
+.st-row > * { scroll-snap-align: start; }
+.st-row .st-tile { width: 112px; }
+.st-add {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; flex-shrink: 0; min-height: 96px;
+  border: 1.5px dashed var(--enki-rule); border-radius: 14px; background: none; color: var(--enki-ink-3); font-size: 12.5px; font-weight: 600; cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.st-add:hover:not(:disabled), .st-add[data-over] { border-color: var(--enki-ember); color: var(--enki-ink); background: rgba(var(--ember-rgb), 0.05); }
+.st-add:disabled { opacity: 0.45; cursor: default; }
+.st-add--square { width: 112px; aspect-ratio: 1; }
+.st-add--tall { width: 132px; aspect-ratio: 3 / 4; }
+.st-add--folder { aspect-ratio: 4 / 3; }
+.st-char { flex-shrink: 0; width: 132px; margin: 0; }
+.st-char-pic { position: relative; display: flex; align-items: center; justify-content: center; aspect-ratio: 3 / 4; border-radius: 14px; overflow: hidden; background: var(--enki-paper-3); }
+.st-char-pic img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.st-char-gone { padding: 10px; font-size: 12px; color: var(--enki-ink-3); text-align: center; }
+.st-char figcaption { display: flex; flex-direction: column; gap: 1px; padding-top: 7px; }
+.st-char-name { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-char-sheet { font-size: 11.5px; color: var(--enki-ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-char--small { width: 84px; }
+
+.st-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.st-item { position: relative; display: flex; flex-direction: column; border: 1px solid var(--enki-rule); border-radius: 14px; background: var(--enki-paper); transition: border-color 0.15s; }
+.st-item:hover { border-color: var(--enki-ink-3); }
+.st-item-body { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; flex: 1; padding: 14px 16px; border: 0; background: none; color: var(--enki-ink); text-align: left; cursor: pointer; }
+.st-item-name { font-size: 14px; font-weight: 600; }
+.st-item-text { font-size: 12.5px; line-height: 1.5; color: var(--enki-ink-3); }
+.st-clamp-2, .st-clamp-3 { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
+.st-clamp-2 { -webkit-line-clamp: 2; }
+.st-clamp-3 { -webkit-line-clamp: 3; }
+.st-copy { align-self: flex-start; margin: -6px 0 12px 16px; padding: 0; border: 0; background: none; color: var(--enki-ink-2); font-size: 12px; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.st-cards .st-add { min-height: 112px; }
+
+/* The content piece's page. */
+.st-crumb { display: inline-block; margin: 0 0 6px; padding: 0; border: 0; background: none; cursor: pointer; }
+.st-crumb:hover { color: var(--enki-ink); }
+.st-create { display: flex; gap: 8px; margin: -6px 0 14px; }
+.st-uses { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 0 22px; }
+.st-renders { columns: 3 220px; column-gap: 10px; }
+.st-render { display: block; width: 100%; margin: 0 0 10px; padding: 0; border: 0; border-radius: 12px; overflow: hidden; background: var(--enki-paper-3); cursor: zoom-in; break-inside: avoid; transition: transform 0.2s ease; }
+.st-render:hover { transform: translateY(-3px); }
+.st-render img { display: block; width: 100%; height: auto; }
+.st-brought .st-tile { width: 84px; }
+.st-brought .st-tile-pic { cursor: default; }
+
+/* The viewer's panel, on its stage (as the image view's .iv-vact). */
+.st-vpanel { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.st-vact {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 56px; padding: 10px 4px;
+  border: 1px solid color-mix(in oklab, var(--enki-on-stage) 18%, transparent); border-radius: 14px;
+  background: color-mix(in oklab, var(--enki-on-stage) 8%, transparent); color: var(--enki-on-stage); font: 400 10.5px/1.2 var(--font-sans), sans-serif; cursor: pointer;
+}
+.st-vact:hover { background: color-mix(in oklab, var(--enki-on-stage) 14%, transparent); }
+
+/* ── The palette ── */
+.st-palette { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.st-swatch { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 6px 0 4px; border: 1px solid var(--enki-rule); border-radius: 999px; }
+.st-swatch input[type="color"] { width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; }
+.st-swatch input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+.st-swatch input[type="color"]::-webkit-color-swatch { border: 1px solid rgba(0, 0, 0, 0.12); border-radius: 50%; }
+.st-hex { font: 500 11.5px/1 var(--font-mono), monospace; color: var(--enki-ink-2); }
+
+/* ── Create in a project: the strip over the composer ── */
+.st-strip { display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 36px; }
+.st-strip-where { display: inline-flex; align-items: center; gap: 7px; min-width: 0; color: var(--enki-ink); }
+.st-strip-where svg { flex-shrink: 0; color: var(--enki-ember); }
+.st-strip-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-strip-note { font-size: 12px; color: var(--enki-ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.st-strip-acts { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; flex-shrink: 0; --kit-pill-h: 32px; }
+.st-strip-x {
+  display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0;
+  border: 1px solid var(--enki-rule); border-radius: 50%; background: none; color: var(--enki-ink-3); cursor: pointer;
+}
+.st-strip-x:hover { color: var(--enki-ink); border-color: var(--enki-ink-3); }
+/* Create > Image: the strip is the bar's first row (ImageBar's `top`). */
+.feed-create-image .ci-bar:has(> .st-strip) { grid-template-areas: "strip strip strip" "prompt prompt gen" "plus pills gen" "cost cost cost"; }
+.feed-create-image .ci-bar[data-phone]:has(> .st-strip) { grid-template-areas: "strip strip" "prompt prompt" "plus pills" "gen gen" "cost cost"; }
+.feed-create-image .ci-bar > .st-strip { grid-area: strip; padding-bottom: 8px; border-bottom: 1px solid var(--enki-rule-2); }
+/* Create > Video: a row over the composer and History, the composer's height less its own. */
+.vg > .st-strip { grid-column: 1 / -1; height: 52px; padding: 0 20px; border-bottom: 1px solid var(--enki-rule-2); background: var(--enki-paper); }
+@media (min-width: 768px) { .vg:has(> .st-strip) .rx-compose { height: calc(100dvh - var(--rx-top) - 52px); } }
+
+/* ── The project's tiles in the reference picker ── */
+.st-rt { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--enki-rule-2); }
+.st-rt-head { font-size: 10.5px; }
+.st-rt-tile { margin: 0; min-width: 0; }
+.st-rt-tile .iv-rp-item { width: 100%; }
+/* With the project's characters on show, the picker's "will show up here" note has nothing left to promise. */
+.st-rt[data-kind="characters"] + .iv-rp-grid + .iv-rp-note { display: none; }
+.st-rt-name { padding-top: 4px; font-size: 11px; font-weight: 600; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── "Keep in <Project>" in the viewer's panel, on its stage ── */
+.st-keep { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid color-mix(in oklab, var(--enki-on-stage) 14%, transparent); }
+.st-keep .kit-label { color: color-mix(in oklab, var(--enki-on-stage) 60%, transparent); }
+.st-keep-acts, .st-keep-name { display: flex; gap: 8px; flex-wrap: wrap; }
+.st-keep .st-btn { flex: 1; border-color: color-mix(in oklab, var(--enki-on-stage) 22%, transparent); background: color-mix(in oklab, var(--enki-on-stage) 8%, transparent); color: var(--enki-on-stage); }
+.st-keep .st-btn--cta { flex: none; border-color: transparent; background: var(--enki-on-stage); color: var(--enki-stage); box-shadow: none; }
+.st-keep .st-input { flex: 1; min-width: 0; min-height: 38px; padding: 8px 12px; background: color-mix(in oklab, var(--enki-on-stage) 8%, transparent); border-color: color-mix(in oklab, var(--enki-on-stage) 22%, transparent); color: var(--enki-on-stage); }
+.st-keep .st-note { color: color-mix(in oklab, var(--enki-on-stage) 55%, transparent); }
+
+/* ── Phone: full-screen popups, three tiles a row, the content page's Create as a foot bar ── */
+@media (max-width: 767.98px) {
+  .st-scrim { padding: 0; }
+  .st-dialog { max-width: none; max-height: none; height: 100dvh; border: 0; border-radius: 0; }
+  .st-dialog-head { padding: 16px 16px 10px; }
+  .st-dialog-title { font-size: 26px; }
+  .st-dialog-body { padding: 4px 16px 18px; }
+  .st-dialog-foot { padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); }
+  .st-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .st-sheets { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .st-pair { grid-template-columns: 1fr; }
+  .st-grid { gap: 12px; }
+  .st-row { margin: 0 -14px; padding: 6px 14px 10px; scroll-padding: 0 14px; }
+  .st-kit { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .st-kit-in { margin: 0 -14px; padding: 0 14px; }
+  .st-renders { columns: 2; }
+  .st-page[data-foot] { padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
+  .st-page[data-foot] .st-create {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; margin: 0; padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px));
+    background: var(--enki-paper); border-top: 1px solid var(--enki-rule);
+  }
+  .st-page[data-foot] .st-create .st-btn { flex: 1; height: 44px; }
+  .st-strip-note { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .st-dialog { animation: none; }
+  .st-card, .st-render, .st-btn { transition: none; }
+  .st-kit-panel, .st-kit-top svg { transition: none; }
+}
+
+/* Work in progress notice on the overview (Kev, 2026-11-09). */
+.st-notice { margin: 0 0 16px; padding: 9px 14px; border-radius: 10px; background: var(--enki-danger); color: var(--enki-paper); font-size: 13px; font-weight: 600; line-height: 1.45; }

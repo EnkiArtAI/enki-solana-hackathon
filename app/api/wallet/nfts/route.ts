@@ -1,0 +1,81 @@
+/**
+ * The signed-in user's NFTs, for the quick-create NFT picker
+ * (Kev, 2026-08-22: "a popup that shows all NFTs in your logged in
+ * account/wallet").
+ *
+ *   GET → { nfts: [{ id, name, image, thumb, collection, proof }], wallets }
+ *
+ * image is the NFT's picture (lib/wallet-nfts imageSource), thumb the Helius
+ * CDN's tile of it: the picker shows the tile and reads a pick's image
+ * through /api/wallet/nfts/image, never from its host. proof lets a press on
+ * the tile check it (app/api/wallet/nfts/check) with no further index call.
+ *
+ * The account's Solana wallets, up to three of its own and up to three it
+ * linked for their NFTs (app/api/wallet/linked), are read at once through the
+ * RPC's index (getAssetsByOwner, up to 1000 assets a wallet); `wallets` says
+ * how many, so the picker tells "no wallet" from "no NFTs". When none could
+ * be read, the answer names the real problem:
+ *   503 "isn't configured yet" — SOLANA_RPC_URL is empty.
+ *   503 "busy"                 — the RPC answered 429.
+ *   503 "no NFT index (DAS)"   — the RPC does not serve DAS (plain public RPCs don't).
+ *
+ *   GET ?creator=<anything> → 404, asked of nothing: Filter by NFT is the
+ * owner's alone (Kev, 2026-11-03, DEC-2026-11-03-57), so no list of a foreign
+ * wallet is ever read. The pictures are another matter: /api/wallet/nfts/image
+ * reads any address a signed-in client names, a foreign NFT's included.
+ */
+import { NextRequest, NextResponse } from "next/server";
+import { getSupabaseServerClient } from "@/lib/supabaseServer";
+import { resolveSessionUserId } from "@/lib/session-user";
+import { checkRequestRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
+import { askDas, cdnImage, DAS_FAILURE, imageSource, solanaWallets, THUMB, type DasAsset } from "@/lib/wallet-nfts";
+import { signNftProof } from "@/lib/nft-check";
+
+export async function GET(req: NextRequest) {
+  if (req.nextUrl.searchParams.has("creator")) return NextResponse.json({ error: "Creator not found" }, { status: 404 });
+  const supabase = getSupabaseServerClient();
+  const userId = await resolveSessionUserId(supabase, req.headers.get("X-Session-Token"));
+  if (!userId) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  // Each wallet read is a paid index call (up to six a list), on the key the payments use
+  // too. Thirty lists an hour is ample for picking; the browser keeps each answer a minute.
+  const limit = checkRequestRateLimit(rateLimitKey(req, "nfts:list", userId), 30, 60 * 60_000);
+  if (!limit.allowed) return rateLimitResponse(limit.retryAfterSeconds);
+
+  const wallets = await solanaWallets(supabase, userId);
+  if (!wallets) return NextResponse.json({ error: "Wallets unavailable" }, { status: 503 });
+  // A minute, in this browser, for this session only: one account's NFTs are nobody else's.
+  const headers = { "Cache-Control": "private, max-age=60", Vary: "X-Session-Token" };
+  if (!wallets.length) return NextResponse.json({ nfts: [], wallets: 0 }, { headers });
+
+  const rpc = process.env.SOLANA_RPC_URL?.trim();
+  if (!rpc) return NextResponse.json({ error: "NFT browsing isn't configured yet" }, { status: 503 });
+
+  // A wallet beyond 1000 assets shows its first 1000 rather than an error.
+  const answers = await Promise.all(
+    wallets.map((ownerAddress) =>
+      askDas<{ items?: DasAsset[] }>(rpc, "getAssetsByOwner", { ownerAddress, page: 1, limit: 1000 }, req.signal),
+    ),
+  );
+  const read = answers.flatMap((a, i) => ("result" in a ? [{ owner: wallets[i], items: a.result.items ?? [] }] : []));
+  if (!read.length) {
+    const failed = answers.flatMap((a) => ("failure" in a ? [a.failure] : []));
+    return NextResponse.json({ error: DAS_FAILURE[failed[0]] }, { status: 503 });
+  }
+
+  const nfts = read.flatMap(({ owner, items }) => items.flatMap((a) => {
+    const image = imageSource(a);
+    // The picker is an image grid: an asset without a picture can't be picked.
+    return image && !a.burnt
+      ? [{
+          id: a.id,
+          // A mint writes this, and the type is only a hope: anything but words would take the page that draws it down.
+          name: (typeof a.content?.metadata?.name === "string" && a.content.metadata.name) || "Untitled",
+          image,
+          thumb: cdnImage(image, THUMB),
+          collection: a.grouping?.find((g) => g.group_key === "collection")?.group_value ?? null,
+          proof: signNftProof(userId, owner, a.id, image),
+        }]
+      : [];
+  }));
+  return NextResponse.json({ nfts, wallets: wallets.length }, { headers });
+}

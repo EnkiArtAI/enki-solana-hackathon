@@ -1,0 +1,43 @@
+/* ── A finished render's notice (Kev, 2026-10-26), wherever the reader is: it slides in at the top right, above every
+   layer (the fullscreen viewer is 9999) but the step-up dialog (10030), under the shell's banner when one shows; along the top on a phone. */
+.ek-ready-list {
+  position: fixed;
+  top: calc(var(--ek-banner-h, 0px) + 16px);
+  right: 16px;
+  z-index: 10020;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(340px, calc(100vw - 32px));
+  pointer-events: none;
+}
+.ek-ready {
+  position: relative;
+  display: flex;
+  pointer-events: auto;
+  border: 1px solid var(--enki-rule);
+  border-radius: 14px;
+  background: var(--enki-paper);
+  box-shadow: var(--enki-shadow-pop);
+  animation: ek-ready-in 0.28s cubic-bezier(0.3, 0.7, 0.3, 1);
+}
+.ek-ready-open { display: flex; flex: 1; align-items: center; gap: 12px; min-width: 0; padding: 10px 40px 10px 10px; border: 0; border-radius: inherit; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.ek-ready-open img { flex-shrink: 0; width: 48px; height: 48px; border-radius: 10px; object-fit: cover; box-shadow: 0 0 0 2px var(--enki-green); }
+.ek-ready-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 13px; }
+.ek-ready-text b { font-weight: 600; color: var(--enki-ink); }
+.ek-ready-text span { overflow: hidden; color: var(--enki-ink-3); text-overflow: ellipsis; white-space: nowrap; }
+.ek-ready-x { position: absolute; top: 8px; right: 8px; display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 7px; background: none; color: var(--enki-ink-3); font-size: 16px; line-height: 1; cursor: pointer; }
+.ek-ready-x:hover { background: var(--enki-fill-hover); color: var(--enki-ink); }
+/* A fullscreen viewer open (it portals to <body>): below its top bar (20 + 36 px), never over its Close. */
+body:has(> .kit-viewer) .ek-ready-list { top: 68px; }
+@keyframes ek-ready-in { from { transform: translateX(calc(100% + 24px)); opacity: 0; } }
+@keyframes ek-ready-down { from { transform: translateY(calc(-100% - 24px)); opacity: 0; } }
+@media (max-width: 1023.98px) {
+  .ek-ready-list { top: calc(var(--ek-banner-h, 0px) + 10px + env(safe-area-inset-top, 0px)); right: 12px; left: 12px; width: auto; }
+  .ek-ready { animation-name: ek-ready-down; }
+  /* The stacked viewer's top bar: 16 + 36 px under the safe area. */
+  body:has(> .kit-viewer) .ek-ready-list { top: calc(60px + env(safe-area-inset-top, 0px)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ek-ready { animation: none; }
+}

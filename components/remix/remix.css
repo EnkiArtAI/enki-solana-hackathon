@@ -1,0 +1,89 @@
+/* Remix (rx-): the composer column and History | Examples beside it, after Sume's (Kev, 2026-10-30), in Enki's
+   tokens. Under Create's row (.feed--create, feed.css) and nothing else: no category bar in this world. Video's column
+   sets --rx-col wider (video.css). */
+
+.rx { display: grid; grid-template-columns: var(--rx-col, 320px) minmax(0, 1fr); align-items: start; }
+
+/* ── The composer: as tall as the window under the world row, scrolling inside, Generate at its foot ── */
+.rx-compose {
+  --rx-top: calc(var(--feed-world-h) + var(--ek-banner-h, 0px));
+  position: sticky; top: var(--rx-top); box-sizing: border-box;
+  display: flex; flex-direction: column; gap: 12px;
+  height: calc(100dvh - var(--rx-top)); overflow-y: auto; overscroll-behavior: contain;
+  padding: 18px 20px 0; border-right: 1px solid var(--enki-rule-2); background: var(--enki-paper);
+}
+.rx-head h2 { margin: 0; font-size: 26px; line-height: 1.1; }
+.rx-head p { margin: 4px 0 0; font-size: 13.5px; line-height: 1.45; color: var(--enki-ink-2); text-wrap: pretty; }
+.rx-modes .kit-seg { display: grid; width: 100%; }
+
+.rx-drop {
+  position: relative; display: flex; flex-direction: column; flex-shrink: 0;
+  border: 1.5px dashed var(--enki-rule); border-radius: 14px; background: var(--enki-paper-2);
+  transition: border-color 0.15s;
+}
+.rx-drop:hover, .rx-drop:focus-within { border-color: var(--enki-ink-3); }
+.rx-drop[data-filled] { border-style: solid; }
+.rx-pick {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  min-height: 120px; padding: 16px; border: 0; border-radius: inherit; background: none;
+  color: var(--enki-ink-3); font: inherit; cursor: pointer;
+}
+.rx-pick-label { font-size: 13.5px; font-weight: 600; color: var(--enki-ink); }
+.rx-pick-sub { font-size: 12px; }
+.rx-clip {
+  display: block; width: 100%; height: 180px; object-fit: contain; border-radius: 12px;
+  background: color-mix(in oklab, var(--enki-stage) 92%, transparent);
+}
+.rx-len {
+  position: absolute; left: 8px; bottom: 8px; padding: 4px 8px; border-radius: 999px;
+  background: color-mix(in oklab, var(--enki-stage) 60%, transparent); color: var(--enki-on-stage);
+  font: 500 11px/1 var(--font-mono), ui-monospace, monospace;
+}
+.rx-x { top: 6px; right: 6px; }
+.rx-drop--photos[data-filled] { padding: 12px; }
+/* Four to a row in the 320 px column, its scrollbar shown or not: two rows at most. */
+.rx-photos { --kit-ref: 52px; gap: 8px; }
+.rx-why { margin: -4px 0 0; font-size: 12px; line-height: 1.4; color: var(--enki-danger); }
+.rx-hint { margin: 0; font-size: 12px; line-height: 1.45; color: var(--enki-ink-3); text-wrap: pretty; }
+/* Both modes' words in one cell, the other one hidden: a switch of mode never moves what is below (Kev, 2026-10-30:
+   "beim swappen von motion transfer zu object swap soll sich die oberfläche drunter nicht bewegen bitte"). */
+.rx-both { display: grid; }
+.rx-both > * { grid-area: 1 / 1; }
+.rx-both > [aria-hidden] { visibility: hidden; }
+.rx-prompt { justify-content: space-between; min-height: 32px; }
+.rx-label { font-size: 13px; font-weight: 600; color: var(--enki-ink); }
+.rx-bar { display: flex; flex-wrap: wrap; gap: 8px; }
+.rx-foot {
+  position: sticky; bottom: 0; z-index: 2; display: flex; flex-direction: column; gap: 8px;
+  margin-top: auto; padding: 12px 0 16px; border-top: 1px solid var(--enki-rule-2); background: var(--enki-paper);
+}
+
+/* ── History | Examples ── */
+.rx-lib { min-width: 0; padding: 18px 24px 40px; }
+.rx-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; margin-top: 18px; }
+.rx-empty { max-width: 420px; margin: 64px auto; text-align: center; }
+.rx-empty h3 { margin: 0 0 6px; font-size: 24px; }
+.rx-empty p { margin: 0; font-size: 13.5px; color: var(--enki-ink-3); }
+.rx-card { display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--enki-rule); border-radius: 12px; background: var(--enki-paper); }
+.rx-card-clip { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--enki-paper-3); }
+.rx-card-foot { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 10px; padding: 10px 12px 12px; }
+.rx-card-foot .kit-label { font-size: 10px; }
+.rx-card-title { grid-column: 1; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 400; color: var(--enki-ink); }
+.rx-recreate {
+  grid-column: 2; grid-row: 1 / span 2; height: 32px; padding: 0 14px;
+  border: 1px solid var(--enki-rule); border-radius: 999px; background: var(--enki-paper-2);
+  color: var(--enki-ink); font: 500 12.5px/1 var(--font-sans), sans-serif; cursor: pointer;
+}
+.rx-recreate:hover { border-color: var(--enki-ink-3); }
+
+/* ── Phones: one column, the composer first, Generate stuck to the bottom while the composer is on screen ── */
+@media (max-width: 767.98px) {
+  .rx { grid-template-columns: minmax(0, 1fr); }
+  .rx-compose { position: static; height: auto; overflow: visible; padding: 16px 16px 0; border-right: 0; border-bottom: 1px solid var(--enki-rule-2); }
+  .rx-foot { padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+  .rx-lib { padding: 16px 16px 40px; }
+  .rx-cards { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rx-drop { transition: none; }
+}

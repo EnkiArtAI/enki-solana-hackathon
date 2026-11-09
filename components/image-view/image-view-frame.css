@@ -1,0 +1,67 @@
+/* The frame and loading state before the Image View chunk arrives.
+   Colours are tokens only (plan §1.1); the kit pieces carry their own CSS.
+   Layers follow the plan's z table: the frame 162, popovers 9000, the
+   viewer 9999, sheets 10000. */
+
+/* ── The frame (moved from .pgv-detail-panel). It starts where the shell's
+   menu ends (--ek-sw, 0 outside the shell) and below the recovery banner,
+   which publishes its height as --ek-banner-h. Under the sidebar (165) and
+   above the panel scrim (160): no panel covers the menu's chevron. */
+.iv-frame {
+  position: fixed;
+  top: var(--ek-banner-h, 0px);
+  right: 0;
+  bottom: 0;
+  left: var(--ek-sw, 0px);
+  z-index: 162;
+  background: var(--enki-paper);
+  transition: left 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+}
+/* Hidden by a shell panel, back on Home: visibility keeps every scroll position. */
+.iv-frame.is-hidden { visibility: hidden; pointer-events: none; }
+@media (max-width: 767.98px) {
+  .iv-frame { left: 0; }
+  /* In the shell the view starts under the shell's own header, which stays: the menu at the top left, the funds and
+     the notifications at the top right, the same over the feed as over an image (Kev, 2026-10-26: "the top bar bei
+     image UI verändert sich auch, was komisch ist, ich brauche mein burger menü links oben"). The view's own phone
+     header (logo, funds, the account) gives way; the account sits at the shell header's corner. Scrolled down, the
+     header tucks over the image too and the view moves up into its place (--ek-slot, --ek-head; Kev, 2026-10-27:
+     "die topleiste sollte bitte auch verschwinden in JEDEM MENÜ, also auch bei image ui mobile"). */
+  .ek-app .iv-frame { top: calc(var(--ek-slot, var(--ek-banner-h, 0px)) + var(--ek-head, 46px)); transition: top 0.2s ease; }
+  .ek-app .iv-frame .iv-top--phone { display: none; }
+}
+/* 768-1023: the shell still shows its 10 px strip (z 165), the view is already the phone layout and covers it. */
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  .iv-frame { left: 0; z-index: 167; }
+  /* A view opened inside a panel (a profile's wall) lives in the panel's layer (z 160): the panel rises with it, or the
+     strip lay over the view's left edge (DEC-465). */
+  .ek-panel-scrim:has(.iv-frame:not(.is-hidden)) { z-index: 167; }
+}
+/* The menu's toggles drop to the v2 header's middle while it shows (plan Q12); the feed keeps them at 9. */
+.ek-app:has(.iv-frame:not(.is-hidden) .iv-top) .ek-toggles { top: 24px; }
+/* /generator/[id]: the view is the page. */
+.iv-page { position: relative; height: calc(100dvh - var(--ek-banner-h, 0px)); background: var(--enki-paper); }
+
+/* ── Loading, unavailable, failed: centred in the frame. */
+.iv-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px;
+  background: var(--enki-paper);
+  color: var(--enki-ink);
+  font-family: var(--font-sans), sans-serif;
+  text-align: center;
+}
+.iv-state-title { margin: 0; font-size: 27px; font-style: normal; line-height: 1.1; text-wrap: balance; }
+.iv-state-acts { display: flex; gap: 8px; }
+.iv-spin { color: var(--enki-ember); animation: kit-spin 0.9s linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* .ek-app .iv-frame too: the phone's tuck transition (above) outranks a bare .iv-frame (review 2026-10-27). */
+  .iv-frame, .ek-app .iv-frame { transition: none; }
+}

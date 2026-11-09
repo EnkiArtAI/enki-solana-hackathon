@@ -1,0 +1,121 @@
+# Enki CI — the quality gate. Green + Kev's merge click = done.
+# Maintenance rules (agreed):
+#  - The gate is REAL: vitest runs the lib/** suites (money math, moderation).
+#    No --passWithNoTests — deleting tests turns the gate red.
+#  - Every job runs the same npm script a dev runs locally. If CI and the
+#    terminal can disagree, the gate is theatre.
+#  - npm ci, never npm install: install resolves fresh versions and would test
+#    a dependency tree nobody has on their machine.
+#  - npm test runs both suites: lib/** (root vitest.config.ts) and
+#    backend/__tests__ (vitest run --root backend, using the root
+#    node_modules). The broken @jest/globals legacy files were deleted in
+#    ENG-11.
+#  - A test that fails then passes with no code change is flaky: skip it via
+#    .skip + open a fix ticket. Never "just rerun" as a routine.
+#  - Tests must not hit real network/time — mock everything. vitest.setup.ts
+#    enforces it: an unmocked fetch throws instead of billing a provider.
+name: ci
+
+on:
+  pull_request:
+  push:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      # Legacy errors are frozen in eslint-suppressions.json, so this is green
+      # today and red the moment a NEW one appears. The rule that matters most
+      # here has zero entries in that file: the ban on importing
+      # @coinbase/cdp-hooks outside the provider tree (eslint.config.mjs) —
+      # a violation takes the editor down at runtime and tsc cannot see it.
+      # Shrink the baseline with `npm run lint:prune`.
+      - name: ESLint
+        run: npm run lint
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Verify the generated Escrow client
+        run: npm run escrow:check
+      - name: TypeScript check
+        run: npm run check
+
+  tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: enki_escrow_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d enki_escrow_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Unit tests (money math, moderation)
+        run: npm test
+      - name: Escrow recovery migration (offline PostgreSQL)
+        run: npm run test:migrations
+      - name: Escrow recovery concurrency (isolated PostgreSQL)
+        run: npm run test:migrations:postgres
+        env:
+          ENKI_ESCROW_TEST_DATABASE_URL: postgresql://postgres:ci@127.0.0.1:5432/enki_escrow_test
+
+  # Full production build. tsc --noEmit misses a whole class of errors that
+  # only `next build` catches: PageProps violations (a page.tsx default export
+  # taking non-PageProps props), unresolved imports (a missing optional peer
+  # like x402-fetch), and Next's own generated route types. These slipped
+  # through to Vercel before this job existed. Dummy, format-valid env lets the
+  # "collect page data" phase evaluate route modules without throwing on real
+  # secrets — the build makes no network calls, so fake values are enough.
+  # (The cleaner long-term fix is to lazy-read env inside handlers so the build
+  # needs no env at all; until then, keep these in sync with new required env.)
+  build:
+    runs-on: ubuntu-latest
+    env:
+      AUTH_PEPPER: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      TEAM_ACCESS_CODE: ci
+      THIRDWEB_SECRET_KEY: ci-dummy
+      NEXT_PUBLIC_THIRDWEB_CLIENT_ID: ci-dummy
+      SERVER_WALLET_ADDRESS: "0x0000000000000000000000000000000000000000"
+      GOOGLE_GEMINI_API_KEY: ci-dummy
+      SUPABASE_URL: https://ci-dummy.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ci-dummy
+      NEXT_PUBLIC_SUPABASE_URL: https://ci-dummy.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-dummy
+      NEXT_PUBLIC_APP_URL: https://ci.enki.gallery
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Production build (next build)
+        run: npm run build

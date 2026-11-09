@@ -1,0 +1,27 @@
+{
+  "name": "enki-backend",
+  "version": "1.0.0",
+  "description": "Backend services for Enki Art platform",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "test:coverage": "vitest --coverage"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.1",
+    "dotenv": "^16.4.5",
+    "zod": "^4.3.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "tsx": "^4.7.1",
+    "typescript": "^5.4.5",
+    "vitest": "^1.4.0"
+  },
+  "keywords": ["ai", "generation", "backend"],
+  "author": "Enki Art Team",
+  "license": "MIT"
+}

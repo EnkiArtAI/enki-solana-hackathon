@@ -1,0 +1,1040 @@
+@import "tailwindcss";
+
+/* A reference image still being read: shown greyed, not yet usable (useReferenceReads). */
+.enki-ref-pending { opacity: 0.45; filter: grayscale(1); pointer-events: none; }
+
+/* Two-finger horizontal swipes on trackpads must never trigger the browser's
+   back/forward navigation — it hijacked node drags in the editor (the node
+   moved for a moment, then the "go back" bubble appeared instead). */
+html, body { overscroll-behavior-x: none; }
+
+/* The 2FA bar (SecondFactorBar) displaces the page, never covers it (Kev,
+   2026-08-13). The shell moves its own layers (.ek-with-banner); any other
+   page starts below the bar, and its sticky headers stop below it
+   (--ek-page-top, 0 inside the shell). (No :has() here: Turbopack's dev
+   build drops it from the selector, and the shell would move down twice.) */
+html.ek-2fa-bar:not(.ek-in-shell) { --ek-page-top: var(--ek-banner-h); }
+html.ek-2fa-bar:not(.ek-in-shell) body { padding-top: var(--ek-page-top); }
+
+/* ─── Enki Design System ─────────────────────────────────────────────────
+   The UNSCOPED copy of the tokens: what a component gets when it is not
+   inside .ek-app or .enki. Those two scoped copies (components/enki-shell/
+   enki-shell.css and components/enki/enki.css) must carry the SAME values —
+   lib/__tests__/enki-theme-tokens.test.ts fails the build if they diverge.
+
+   They used to. This block declared a neutral shadcn dark (#0a0a0a paper,
+   #f1f1f3 ink, #c96838 ember) while the scoped copies declared Enki's blue
+   slate (#0a1825 / #e4edf1 / #cba24a), and it had no purple block at all.
+   Every component outside those two containers therefore rendered in a theme
+   the rest of the app abandoned, and never turned purple. */
+:root {
+  /* The white UI (Kev's image UI v2 handoff, 2026-10-21): paper, ink, rule and the bordeaux accent. */
+  --enki-paper: #ffffff;
+  --enki-paper-2: #f6f5f4;
+  --enki-paper-3: #ecebe9;
+  --enki-ink: #111111;
+  --enki-ink-2: #3d3c3a;
+  --enki-ink-3: #6b6a67;
+  --enki-rule: #e3e2df;
+  --enki-rule-2: #efeeec;
+  --enki-ember: #7d1d33;
+  /* The image UI v2 set (README section 7): hover and soft accent, the neutral fill of small buttons, the green of
+     the buyer's own changes and the ring of their own photos. Dark and purple mix theirs from their own colours below. */
+  --enki-accent-hover: #651629;
+  --enki-accent-soft: #f6ecee;
+  --enki-accent-soft-hover: #efdfe3;
+  --enki-accent-ink: #6a1629;
+  --enki-fill: #f1f0ee;
+  --enki-fill-hover: #e7e6e3;
+  --enki-green: #2f7a4f;
+  --enki-photo-ring: #c58f9c;
+  --enki-turq: #0d9488;
+  --enki-danger: #b3271e;
+  --enki-danger-ink: #ffffff;
+  --enki-label-quiet: var(--enki-ink-3);
+  /* The image UI's set. Stage = the always-dark surfaces (viewer, rendering
+     tile, glass on artwork); vary = one colour per variation. The shadows are
+     rgba, which the parity test cannot read: keep them equal by hand. */
+  --enki-amber: #e0a35c;
+  --enki-price-bg: #e0a35c;
+  --enki-price-ink: #111111;
+  --enki-stage: #111111;
+  --enki-on-stage: #ffffff;
+  --enki-ref-a: #cfe3f2;
+  --enki-ref-b: #cdeee3;
+  --enki-ref-ink: #1e4b5a;
+  --enki-vary-1: #c96838;
+  --enki-vary-2: #0d9488;
+  --enki-vary-3: #a8822a;
+  --enki-vary-4: #3d3a36;
+  --enki-vary-5: #8b5cf6;
+  --enki-vary-6: #5b7a91;
+  --enki-shadow-pop: 0 24px 60px rgba(17, 17, 17, 0.25);
+  --enki-shadow-card: 0 12px 32px rgba(17, 17, 17, 0.1), 0 2px 6px rgba(17, 17, 17, 0.05);
+  --enki-shadow-bar: 0 -16px 20px -12px rgba(17, 17, 17, 0.08);
+  --font-sans: var(--font-geist-sans), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+  --font-serif: var(--font-instrument-serif), 'Georgia', serif;
+}
+
+.dark {
+  --enki-paper: #0a1825;
+  --enki-paper-2: #102433;
+  --enki-paper-3: #16303f;
+  --enki-ink: #e4edf1;
+  --enki-ink-2: #97aebb;
+  --enki-ink-3: #6a8493;
+  --enki-rule: #1e3849;
+  --enki-rule-2: #2a4658;
+  --enki-ember: #cba24a;
+  --enki-turq: #2dd4bf;
+  --enki-danger: #e0584f;
+  --enki-amber: #e0a35c;
+  --enki-price-bg: #0a1825;
+  --enki-price-ink: #e0a35c;
+  --enki-stage: #050c13;
+  --enki-on-stage: #faf8f4;
+  --enki-ref-a: #cfe3f2;
+  --enki-ref-b: #cdeee3;
+  --enki-ref-ink: #1e4b5a;
+  --enki-vary-1: #cba24a;
+  --enki-vary-2: #2dd4bf;
+  --enki-vary-3: #e07a4f;
+  --enki-vary-4: #97aebb;
+  --enki-vary-5: #c084fc;
+  --enki-vary-6: #7fb3d5;
+  --enki-shadow-pop: 0 18px 50px rgba(0, 0, 0, 0.45);
+  --enki-shadow-card: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --enki-shadow-bar: 0 -16px 20px -12px rgba(0, 0, 0, 0.35);
+}
+
+.dark.theme-purple {
+  --enki-paper: #140e1f;
+  --enki-paper-2: #1c1330;
+  --enki-paper-3: #241a37;
+  --enki-ink: #ece8f5;
+  --enki-ink-2: #a99fc0;
+  --enki-ink-3: #7d7295;
+  --enki-accent-ink: var(--enki-ink);
+  --enki-rule: #2e2442;
+  --enki-rule-2: #3d3154;
+  --enki-ember: #a855f7;
+  --enki-turq: #2dd4bf;
+  --enki-danger: #e0584f;
+  --enki-amber: #e0a35c;
+  --enki-price-bg: #140e1f;
+  --enki-price-ink: #e0a35c;
+  --enki-stage: #0b0713;
+  --enki-on-stage: #faf8f4;
+  --enki-ref-a: #cfe3f2;
+  --enki-ref-b: #cdeee3;
+  --enki-ref-ink: #1e4b5a;
+  --enki-vary-1: #a855f7;
+  --enki-vary-2: #2dd4bf;
+  --enki-vary-3: #e0a35c;
+  --enki-vary-4: #a99fc0;
+  --enki-vary-5: #f472b6;
+  --enki-vary-6: #7fb3d5;
+  --enki-shadow-pop: 0 18px 50px rgba(0, 0, 0, 0.45);
+  --enki-shadow-card: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --enki-shadow-bar: 0 -16px 20px -12px rgba(0, 0, 0, 0.35);
+}
+
+/* The v2 set for dark and purple, mixed from each theme's own ember, ink and paper (custom properties resolve where
+   declared, on <html>, and inherit into .ek-app, .enki and the portals). */
+.dark {
+  --enki-accent-hover: color-mix(in srgb, var(--enki-ember) 82%, #000);
+  --enki-accent-soft: color-mix(in srgb, var(--enki-ember) 16%, var(--enki-paper));
+  --enki-accent-soft-hover: color-mix(in srgb, var(--enki-ember) 24%, var(--enki-paper));
+  --enki-accent-ink: var(--enki-ember);
+  --enki-danger-ink: var(--enki-stage);
+  --enki-label-quiet: var(--enki-ink-2);
+  --enki-fill: color-mix(in srgb, var(--enki-ink) 8%, var(--enki-paper));
+  --enki-fill-hover: color-mix(in srgb, var(--enki-ink) 14%, var(--enki-paper));
+  --enki-green: #4ade80;
+  --enki-photo-ring: color-mix(in srgb, var(--enki-ember) 60%, var(--enki-paper));
+}
+
+/* Fix for grid children overflowing their columns */
+.lg\:grid > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Force inputs to respect container width */
+input,
+textarea {
+  max-width: 100%;
+}
+
+/* LIGHT MODE */
+:root {
+  --button-outline: rgba(0, 0, 0, 0.1);
+  --badge-outline: rgba(0, 0, 0, 0.05);
+  --opaque-button-border-intensity: -8;
+  --elevate-1: rgba(0, 0, 0, 0.03);
+  --elevate-2: rgba(0, 0, 0, 0.08);
+  /* Brand accent as rgb components for rgba() glows. Bordeaux in light. */
+  --ember-rgb: 125, 29, 51;
+  /* Theme-driven chrome so the header/launcher paint the right color from the
+     first frame (resolved from the <html> class, no JS flash). */
+  --header-bg: rgba(255, 255, 255, 0.98);
+  --qc-bg: #7d1d33;   /* generate launcher pill */
+  --qc-ink: #ffffff;
+  /* Generate / Release outside .ek-app (/generator/[id]); same as the shell's. */
+  --cta-bg: #7d1d33;
+  --cta-ink: #ffffff;
+  /* A button's flat fill and its hover: the accent where its ink reads on it (purple's does not, see there). */
+  --cta-solid: #7d1d33;
+  --cta-hover: #651629;
+  /* shadcn's HSL set on the same white: paper, ink, rule, fill and the bordeaux accent. */
+  --background: 0 0% 100%;
+  --foreground: 0 0% 7%;
+  --border: 45 7% 88%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 7%;
+  --card-border: 45 7% 88%;
+  --sidebar: 30 10% 96%;
+  --sidebar-foreground: 0 0% 7%;
+  --sidebar-border: 45 7% 88%;
+  --sidebar-primary: 346 62% 30%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 40 10% 94%;
+  --sidebar-accent-foreground: 0 0% 7%;
+  --sidebar-ring: 346 62% 30%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 7%;
+  --popover-border: 45 7% 88%;
+  --primary: 346 62% 30%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 40 10% 94%;
+  --secondary-foreground: 0 0% 7%;
+  --muted: 30 10% 96%;
+  --muted-foreground: 45 2% 41%;
+  --accent: 40 10% 94%;
+  --accent-foreground: 0 0% 7%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --input: 45 7% 88%;
+  --ring: 346 62% 30%;
+  --chart-1: 41 47% 56%;
+  --chart-2: 192 65% 26%;
+  --chart-3: 175 40% 30%;
+  --chart-4: 190 30% 12%;
+  --chart-5: 41 47% 56%;
+  /* Geist for the whole UI; numbers, labels and codes in JetBrains Mono, the layout's one mono (DEC-2026-11-08-08; the image UI
+     v2 handoff of 2026-10-21 had set Geist Mono). This later block used to set Inter. */
+  --font-sans: var(--font-geist-sans), system-ui, sans-serif;
+  --font-brand: var(--font-instrument-serif), serif;
+  --font-serif: var(--font-instrument-serif), Georgia, serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+  --radius: 0.5rem;
+  --shadow-2xs: 0px 2px 0px 0px hsl(240 6% 10% / 0.02);
+  --shadow-xs: 0px 2px 0px 0px hsl(240 6% 10% / 0.03);
+  --shadow-sm:
+    0px 2px 0px 0px hsl(240 6% 10% / 0.04),
+    0px 1px 2px -1px hsl(240 6% 10% / 0.06);
+  --shadow:
+    0px 2px 0px 0px hsl(240 6% 10% / 0.05),
+    0px 1px 2px -1px hsl(240 6% 10% / 0.08);
+  --shadow-md:
+    0px 2px 0px 0px hsl(240 6% 10% / 0.06),
+    0px 2px 4px -1px hsl(240 6% 10% / 0.1);
+  --shadow-lg:
+    0px 2px 0px 0px hsl(240 6% 10% / 0.08),
+    0px 4px 6px -1px hsl(240 6% 10% / 0.12);
+  --shadow-xl:
+    0px 2px 0px 0px hsl(240 6% 10% / 0.1),
+    0px 8px 10px -1px hsl(240 6% 10% / 0.15);
+  --shadow-2xl: 0px 2px 0px 0px hsl(240 6% 10% / 0.12);
+  --tracking-normal: 0em;
+  --spacing: 0.25rem;
+
+  /* Plain white: the teal glow belonged to the old light theme. */
+  --app-bg: none;
+
+  --panel-bg: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.7),
+    rgba(255, 255, 255, 0.42)
+  );
+  --panel-hairline: rgba(17, 17, 17, 0.08);
+  --panel-hairline-soft: rgba(255, 255, 255, 0.62);
+
+  /* Fallback for older browsers */
+  --sidebar-primary-border: hsl(var(--sidebar-primary));
+  --sidebar-primary-border: hsl(
+    from hsl(var(--sidebar-primary)) h s
+      calc(l + var(--opaque-button-border-intensity)) / alpha
+  );
+
+  /* Fallback for older browsers */
+  --sidebar-accent-border: hsl(var(--sidebar-accent));
+  --sidebar-accent-border: hsl(
+    from hsl(var(--sidebar-accent)) h s
+      calc(l + var(--opaque-button-border-intensity)) / alpha
+  );
+
+  /* Fallback for older browsers */
+  --primary-border: hsl(var(--primary));
+  --primary-border: hsl(
+    from hsl(var(--primary)) h s
+      calc(l + var(--opaque-button-border-intensity)) / alpha
+  );
+
+  /* Fallback for older browsers */
+  --secondary-border: hsl(var(--secondary));
+  --secondary-border: hsl(
+    from hsl(var(--secondary)) h s
+      calc(l + var(--opaque-button-border-intensity)) / alpha
+  );
+
+  /* Fallback for older browsers */
+  --muted-border: hsl(var(--muted));
+  --muted-border: hsl(
+    from hsl(var(--muted)) h s calc(l + var(--opaque-button-border-intensity)) /
+      alpha
+  );
+
+  /* Fallback for older browsers */
+  --accent-border: hsl(var(--accent));
+  --accent-border: hsl(
+    from hsl(var(--accent)) h s
+      calc(l + var(--opaque-button-border-intensity)) / alpha
+  );
+
+  /* Fallback for older browsers */
+  --destructive-border: hsl(var(--destructive));
+  --destructive-border: hsl(
+    from hsl(var(--destructive)) h s
+      calc(l + var(--opaque-button-border-intensity)) / alpha
+  );
+}
+
+.dark {
+  /* Portion.io-inspired dark theme: midnight navy/teal base + gold accent. */
+  --ember-rgb: 203, 162, 74; /* gold glow in dark */
+  /* Surface + accent helpers consumed by the modal & navbar, so the purple
+     theme can re-tint every dark surface from one place. */
+  --surface-1: #0f2230;     /* sheet / primary panel */
+  --surface-2: #16303f;     /* raised / active card */
+  --surface-3: #0b1c29;     /* inputs / secondary */
+  --surface-chrome: #0c1e2b;/* footer / nav chrome */
+  --surface-text: #e4edf1;
+  --surface-rule: #1e3849;
+  --cta-bg: linear-gradient(135deg, #cba24a 0%, #b8862f 100%);
+  --cta-solid: #cba24a;
+  --cta-ink: #0a1825;
+  --cta-hover: #d8b362;
+  --header-bg: rgba(10, 24, 37, 0.98);
+  --qc-bg: #f0a868;   /* peach launcher in dark */
+  --qc-ink: #3a2410;
+  --background: 205 52% 8%; /* #0a1825 midnight navy */
+  --foreground: 200 27% 92%; /* #e4edf1 */
+
+  --card: 204 46% 12%; /* #102433 */
+  --card-foreground: 200 27% 92%;
+  --card-border: 203 36% 19%; /* #1e3849 */
+
+  --sidebar: 204 46% 12%;
+  --sidebar-foreground: 200 27% 92%;
+  --sidebar-border: 203 36% 19%;
+  --sidebar-primary: 43 55% 54%; /* #cba24a gold */
+  --sidebar-primary-foreground: 205 50% 9%;
+  --sidebar-accent: 204 40% 15%;
+  --sidebar-accent-foreground: 200 27% 92%;
+
+  --popover: 204 46% 12%;
+  --popover-foreground: 200 27% 92%;
+  --popover-border: 203 36% 19%;
+
+  --primary: 43 55% 54%; /* #cba24a gold */
+  --primary-foreground: 205 50% 9%;
+  --secondary: 176 45% 46%; /* #41ada3 teal */
+  --secondary-foreground: 205 50% 9%;
+
+  --muted: 204 40% 15%;
+  --muted-foreground: 201 20% 66%; /* #97aebb */
+  --accent: 43 55% 54%; /* gold */
+  --accent-foreground: 205 50% 9%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+
+  --input: 204 40% 15%;
+  --border: 203 36% 19%;
+  --ring: 43 55% 54%;
+
+  --chart-1: 43 55% 54%;   /* gold */
+  --chart-2: 176 45% 46%;  /* teal */
+  --chart-3: 200 27% 92%;
+  --chart-4: 204 46% 12%;
+  --chart-5: 192 52% 42%;  /* blue-teal */
+
+  --shadow-2xs: 0px 1px 2px 0px rgba(0,0,0, 0.6);
+  --shadow-xs: 0px 1px 3px 0px rgba(0,0,0, 0.7);
+  --shadow-sm: 0px 2px 4px 0px rgba(0,0,0, 0.8);
+  --shadow: 0px 4px 8px 0px rgba(0,0,0, 0.85);
+  --shadow-md: 0px 8px 16px 0px rgba(0,0,0, 0.9);
+  --shadow-lg: 0px 12px 24px 0px rgba(0,0,0, 0.95);
+  --shadow-xl: 0px 20px 40px 0px rgba(0,0,0, 1);
+  --shadow-2xl: 0px 24px 48px 0px rgba(0,0,0, 1);
+
+  --app-bg: hsl(var(--background));
+  --panel-bg: hsl(var(--card));
+  --panel-hairline: rgba(203, 162, 74, 0.16); /* gold stroke */
+  --panel-hairline-soft: rgba(255, 255, 255, 0.02);
+
+
+  /* Fallback for older browsers */
+  --sidebar-primary-border: hsl(var(--sidebar-primary));
+  --sidebar-primary-border: hsl(
+    from hsl(var(--sidebar-primary)) h s
+      calc(l + var(--opaque-button-border-intensity)) / alpha
+  );
+
+  /* Fallback for older browsers */
+  --sidebar-accent-border: hsl(var(--sidebar-accent));
+  --sidebar-accent-border: hsl(
+    from hsl(var(--sidebar-accent)) h s
+      calc(l + var(--opaque-button-border-intensity)) / alpha
+  );
+
+  /* Fallback for older browsers */
+  --primary-border: hsl(var(--primary));
+  --primary-border: hsl(
+    from hsl(var(--primary)) h s
+      calc(l + var(--opaque-button-border-intensity)) / alpha
+  );
+
+  /* Fallback for older browsers */
+  --secondary-border: hsl(var(--secondary));
+  --secondary-border: hsl(
+    from hsl(var(--secondary)) h s
+      calc(l + var(--opaque-button-border-intensity)) / alpha
+  );
+
+  /* Fallback for older browsers */
+  --muted-border: hsl(var(--muted));
+  --muted-border: hsl(
+    from hsl(var(--muted)) h s calc(l + var(--opaque-button-border-intensity)) /
+      alpha
+  );
+
+  /* Fallback for older browsers */
+  --accent-border: hsl(var(--accent));
+  --accent-border: hsl(
+    from hsl(var(--accent)) h s
+      calc(l + var(--opaque-button-border-intensity)) / alpha
+  );
+
+  /* Fallback for older browsers */
+  --destructive-border: hsl(var(--destructive));
+  --destructive-border: hsl(
+    from hsl(var(--destructive)) h s
+      calc(l + var(--opaque-button-border-intensity)) / alpha
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Purple theme — a dark variant (always paired with `.dark`). Re-tints
+   the dark palette to the landing page's violet (#7c3aed/#a855f7) so the
+   user can preserve that look as an optional mode. Only color tokens +
+   the surface/accent helpers change; all `.dark` structure is inherited.
+   ════════════════════════════════════════════════════════════════ */
+.dark.theme-purple {
+  --ember-rgb: 168, 85, 247; /* #a855f7 violet glow */
+  --surface-1: #1a1228;
+  --surface-2: #241a37;
+  --surface-3: #140e1f;
+  --surface-chrome: #160f22;
+  --surface-text: #ece8f5;
+  --surface-rule: #342a4a;
+  /* Kev, 2026-11-05: these tones are exact. White under them reads 3.49 to 4.23 and stays: dark ink would lose the theme's white
+     labels and one ink cannot serve both ends of the gradient (lib/__tests__/cta-contrast.test.ts). */
+  --cta-bg: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+  --cta-solid: #a855f7;
+  --cta-ink: #ffffff;
+  --cta-hover: #9d6ef8;
+  --header-bg: rgba(20, 14, 32, 0.98);
+  --qc-bg: #8b5cf6;   /* violet launcher in purple */
+  --qc-ink: #ffffff;
+
+  --background: 263 45% 9%;   /* deep violet-black */
+  --foreground: 260 28% 93%;
+
+  --card: 263 36% 14%;
+  --card-foreground: 260 28% 93%;
+  --card-border: 258 26% 23%;
+
+  --sidebar: 263 36% 14%;
+  --sidebar-foreground: 260 28% 93%;
+  --sidebar-border: 258 26% 23%;
+  --sidebar-primary: 271 85% 66%; /* violet */
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 262 32% 17%;
+  --sidebar-accent-foreground: 260 28% 93%;
+
+  --popover: 263 36% 14%;
+  --popover-foreground: 260 28% 93%;
+  --popover-border: 258 26% 23%;
+
+  --primary: 271 85% 66%;   /* #a855f7 */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 199 85% 60%; /* #38bdf8 sky */
+  --secondary-foreground: 263 45% 10%;
+
+  --muted: 262 32% 16%;
+  --muted-foreground: 260 20% 70%;
+  --accent: 271 85% 66%;
+  --accent-foreground: 0 0% 100%;
+
+  --input: 262 32% 16%;
+  --border: 258 26% 23%;
+  --ring: 271 85% 66%;
+
+  --chart-1: 271 85% 66%;
+  --chart-2: 199 85% 60%;
+  --chart-3: 260 28% 93%;
+  --chart-4: 263 36% 14%;
+  --chart-5: 286 70% 60%;
+
+  --panel-hairline: rgba(168, 85, 247, 0.18);
+}
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-border: hsl(var(--border));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-card-border: hsl(var(--card-border));
+  --color-sidebar: hsl(var(--sidebar));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-primary: hsl(var(--sidebar-primary));
+  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
+  --color-sidebar-ring: hsl(var(--sidebar-ring));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-popover-border: hsl(var(--popover-border));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-chart-1: hsl(var(--chart-1));
+  --color-chart-2: hsl(var(--chart-2));
+  --color-chart-3: hsl(var(--chart-3));
+  --color-chart-4: hsl(var(--chart-4));
+  --color-chart-5: hsl(var(--chart-5));
+  --font-sans: var(--font-sans);
+  --font-serif: var(--font-serif);
+  --font-mono: var(--font-mono);
+}
+
+body {
+  font-family:
+    var(--font-sans),
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  background-image: var(--app-bg);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  background-size: cover;
+  text-rendering: geometricPrecision;
+  font-size: 16px;
+  line-height: 1.6;
+
+  --privy-color-background: hsl(var(--background));
+  --privy-color-background-2: hsl(var(--card));
+  --privy-color-background-3: hsl(var(--muted));
+
+  --privy-color-foreground: hsl(var(--foreground));
+  --privy-color-foreground-2: hsl(var(--muted-foreground));
+  --privy-color-foreground-3: hsl(var(--foreground) / 0.7);
+  --privy-color-foreground-4: hsl(var(--foreground) / 0.5);
+  --privy-color-foreground-accent: hsl(var(--primary));
+
+  --privy-color-accent: hsl(var(--primary));
+  --privy-color-accent-light: hsl(var(--primary) / 0.8);
+  --privy-color-accent-lightest: hsl(var(--primary) / 0.1);
+  --privy-color-accent-dark: hsl(var(--primary) / 1.2);
+  --privy-color-accent-darkest: hsl(var(--primary) / 1.4);
+
+  --privy-color-success: hsl(142 76% 36%);
+  --privy-color-error: hsl(var(--destructive));
+  --privy-color-error-light: hsl(var(--destructive) / 0.8);
+
+  --privy-border-radius-sm: 0.1875rem;
+  --privy-border-radius-md: 0.375rem;
+  --privy-border-radius-lg: 0.5625rem;
+  --privy-border-radius-full: 9999px;
+}
+
+/* Typography */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-serif), "Playfair Display", "Georgia", serif;
+  color: hsl(var(--foreground));
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+h1 {
+  font-size: 3rem;
+  line-height: 1.1;
+}
+
+h2 {
+  font-size: 2.25rem;
+  line-height: 1.2;
+}
+
+h3 {
+  font-size: 1.875rem;
+  line-height: 1.3;
+}
+
+h4 {
+  font-size: 1.5rem;
+  line-height: 1.4;
+}
+
+h5 {
+  font-size: 1.25rem;
+  line-height: 1.5;
+}
+
+h6 {
+  font-size: 1.125rem;
+  line-height: 1.5;
+}
+
+p {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: hsl(var(--foreground));
+}
+
+.text-sm {
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.text-xs {
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.text-lg {
+  font-size: 1.125rem;
+  line-height: 1.6;
+}
+
+.text-xl {
+  font-size: 1.25rem;
+  line-height: 1.6;
+}
+
+.text-2xl {
+  font-size: 1.5rem;
+  line-height: 1.4;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+::selection {
+  background: hsl(var(--primary) / 0.25);
+}
+
+html {
+  /* No reserved gutter. `scrollbar-gutter: stable` held a scrollbar-wide
+     column on the right edge of EVERY page, scrollbar or not — and in the
+     shell most surfaces scroll in inner containers, so the page-level bar
+     rarely exists and the column read as dead space (Kev, 2026-08-19,
+     screenshot). The cost of removing it is a small layout shift on the
+     transition between scrolling and non-scrolling pages, which is the
+     honest trade: space when and only when the bar is real. */
+  scrollbar-color: hsl(var(--border) / 0.8) transparent;
+}
+
+* {
+  scrollbar-color: hsl(var(--border) / 0.8) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--border) / 0.75);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(var(--border));
+}
+
+html.theme-transition,
+html.theme-transition * {
+  transition-property:
+    background-color, border-color, color, fill, stroke, opacity, box-shadow,
+    filter, backdrop-filter;
+  transition-duration: 420ms;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.theme-transition,
+  html.theme-transition * {
+    transition: none !important;
+  }
+}
+
+/* Less motion, Settings › App, this device (lib/ui/kit/motion.ts): every transition and animation an instant. Near zero,
+   not none, so each animationend and transitionend still fires and each animation's end state still holds. */
+html.ek-less-motion,
+html.ek-less-motion *,
+html.ek-less-motion *::before,
+html.ek-less-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/**
+ * Using the elevate system.
+ * Automatic contrast adjustment.
+ */
+@layer utilities {
+  /* Hide ugly search cancel button in Chrome until we can style it properly */
+  input[type="search"]::-webkit-search-cancel-button {
+    display: none;
+  }
+
+  /* Placeholder styling for contentEditable div */
+  [contenteditable][data-placeholder]:empty::before {
+    content: attr(data-placeholder);
+    color: hsl(var(--muted-foreground));
+  }
+
+  .shadcn-card {
+    background-image: var(--panel-bg);
+  }
+
+  .shadcn-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    box-shadow:
+      inset 0 1px 0 var(--panel-hairline-soft),
+      inset 0 0 0 1px var(--panel-hairline);
+    opacity: 0.85;
+  }
+
+  .no-default-hover-elevate {
+  }
+
+  .no-default-active-elevate {
+  }
+
+  .toggle-elevate::before,
+  .toggle-elevate-2::before {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    inset: 0px;
+    border-radius: inherit;
+    z-index: -1;
+  }
+
+  .toggle-elevate.toggle-elevated::before {
+    background-color: var(--elevate-2);
+  }
+
+  .border.toggle-elevate::before {
+    inset: -1px;
+  }
+
+  .hover-elevate:not(.no-default-hover-elevate),
+  .active-elevate:not(.no-default-active-elevate),
+  .hover-elevate-2:not(.no-default-hover-elevate),
+  .active-elevate-2:not(.no-default-active-elevate) {
+    position: relative;
+    z-index: 0;
+  }
+
+  .hover-elevate:not(.no-default-hover-elevate)::after,
+  .active-elevate:not(.no-default-active-elevate)::after,
+  .hover-elevate-2:not(.no-default-hover-elevate)::after,
+  .active-elevate-2:not(.no-default-active-elevate)::after {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    inset: 0px;
+    border-radius: inherit;
+    z-index: 999;
+  }
+
+  .hover-elevate:hover:not(.no-default-hover-elevate)::after,
+  .active-elevate:active:not(.no-default-active-elevate)::after {
+    background-color: var(--elevate-1);
+  }
+
+  .hover-elevate-2:hover:not(.no-default-hover-elevate)::after,
+  .active-elevate-2:active:not(.no-default-active-elevate)::after {
+    background-color: var(--elevate-2);
+  }
+
+  .border.hover-elevate:not(.no-hover-interaction-elevate)::after,
+  .border.active-elevate:not(.no-active-interaction-elevate)::after,
+  .border.hover-elevate-2:not(.no-hover-interaction-elevate)::after,
+  .border.active-elevate-2:not(.no-active-interaction-elevate)::after,
+  .border.hover-elevate:not(.no-hover-interaction-elevate)::after {
+    inset: -1px;
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(
+        in oklab,
+        hsl(var(--primary)) 55%,
+        hsl(var(--border))
+      )
+      transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+    border-radius: 999px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: color-mix(in oklab, hsl(var(--primary)) 55%, transparent);
+    border-radius: 999px;
+    border: 1px solid transparent;
+    background-clip: padding-box;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: color-mix(in oklab, hsl(var(--primary)) 75%, transparent);
+  }
+
+  .cyber-glass {
+    position: relative;
+    overflow: hidden;
+    border-radius: 0;
+    background-color: transparent;
+  }
+
+  .cyber-glass::before {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    border: 1px solid rgba(39, 39, 42, 1);
+  }
+
+  .cyber-glass::after {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: none;
+    opacity: 0;
+  }
+
+  .cyber-shadow {
+    box-shadow: none;
+  }
+
+  .cyber-pill {
+    position: relative;
+    overflow: hidden;
+    border-radius: 0;
+    background-color: transparent;
+  }
+
+  .cyber-pill::before {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    border: 1px solid rgba(39, 39, 42, 1);
+  }
+
+  .cyber-pill::after {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: none;
+    opacity: 0;
+  }
+
+  .cyber-gradient {
+    background-image: none;
+  }
+
+  .cyber-shine {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .cyber-shine::after {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    top: -120%;
+    left: -60%;
+    width: 60%;
+    height: 340%;
+    transform: rotate(25deg);
+    background: linear-gradient(
+      to right,
+      rgba(255, 255, 255, 0),
+      rgba(255, 255, 255, 0.18),
+      rgba(255, 255, 255, 0)
+    );
+    opacity: 0;
+    transition: none;
+  }
+
+  .cyber-shine:hover::after {
+    opacity: 0;
+    transform: rotate(25deg);
+  }
+
+  @keyframes cyber-beam {
+    0% {
+      opacity: 0;
+      transform: translateX(-20%) translateY(-20%);
+    }
+
+    10% {
+      opacity: 1;
+    }
+
+    100% {
+      opacity: 0;
+      transform: translateX(20%) translateY(20%);
+    }
+  }
+
+  .cyber-focus-beam {
+    position: relative;
+  }
+
+  .cyber-focus-beam::after {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #8b5cf6, #3b82f6);
+    opacity: 0;
+    filter: blur(10px);
+  }
+
+  .cyber-focus-beam:focus-within::after {
+    opacity: 0;
+    animation: none;
+  }
+
+  .portion-ornament {
+    height: 1px;
+    width: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.25),
+      transparent
+    );
+    opacity: 0.55;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cyber-shine::after {
+      transition: none;
+    }
+
+    .cyber-shine:hover::after {
+      opacity: 0;
+      transform: rotate(25deg);
+    }
+
+    .cyber-focus-beam:focus-within::after {
+      animation: none;
+    }
+  }
+}
+
+/* Kev, 2026-11-05: "we gotta keep the precise tones". The accent stays #a855f7 on its fills, tints, borders and dots. A label on
+   its own tint or a raised paper reads 3.50 to 4.49 in it, so these labels take the theme's ink; their tint and border stay. */
+.dark.theme-purple .ek-balance,
+.dark.theme-purple .feed-pill.on,
+.dark.theme-purple .feed-gen-chip.on,
+.dark.theme-purple .feed-search-btn:hover,
+.dark.theme-purple .feed-suggest-item.active,
+.dark.theme-purple .enki-boost--on,
+.dark.theme-purple .kit-tok--var,
+.dark.theme-purple .kit-gen-chip,
+.dark.theme-purple .mobile-modal-pill,
+.dark.theme-purple .iv-review-plus,
+.dark.theme-purple .iv-rv-write,
+.dark.theme-purple .iv-pact[data-on="saved"] { color: var(--enki-ink); }
+
+/* The same for quiet controls: --enki-ink-3 keeps its tone, captions keep it, and a control's label reads --enki-label-quiet. A
+   token on the element and no colour, so a control's .on and :hover states still decide. */
+:is(.feed-pill, .feed-chip, .feed-gen-chip, .feed-search-btn, .feed-create-image .ci-more, .ci-menu-back, .enki-tabs a, .enki-nftp-item,
+  .enki-boost, .ek-sub-toggle, .ek-account-more, .ek-logoff, .ek-page-pill, .ek-msg-icon-btn, .cm-add, .cm-icon-btn, .iv-mback, .iv-copy,
+  .iv-doc-tools .iv-link, .iv-plain-head .iv-link, .iv-chip[data-quiet], .iv-photo[data-add], .iv-photo-add, .iv-mode-btn, .kit-copy,
+  .kit-field-copy, .kit-ref-add, .mobile-modal-var-remove, .set-nav-item.disabled, .set-btn-outline:disabled, .set-prov-chip--off,
+  .st-btn--quiet, .st-add) { --enki-ink-3: var(--enki-label-quiet); }

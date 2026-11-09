@@ -1,0 +1,74 @@
+/* Shared base for the image UI (kit-, pe-, iv-, ivm-, feed-). Loaded once,
+   globally, by app/layout.tsx. */
+
+/* The app's one label: LABEL in components/enki-window.ts, Settings' small label (DEC-2026-11-08-09). */
+.kit-label {
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--enki-label-quiet);
+}
+
+/* A UI title: TITLE's type in components/enki-window.ts without its size (DEC-2026-11-08-10). Beats the global h1-h6 rule
+   (600, -0.02em, --foreground). */
+.kit-title {
+  font-family: var(--font-serif), Georgia, serif;
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  color: var(--enki-ink);
+}
+
+/* The app's one field (DEC-2026-11-08-19): Studio's field, here so every page has it. 44px, radius 12, paper-2 and the
+   rule, Geist 15 (16 on a phone, where iOS zooms into anything smaller); the placeholder in the quiet label. Its focus is the
+   one designed ring, the ember border and a 3px ember halo, on :focus-within, so a frame holding the input (an icon, a
+   prefix) shows it too. .kit-ring gives that ring to a field that keeps its own frame (a dense staff table); it draws that
+   frame's line in the rule here, not inline, so the ember border can take its place on focus (an inline colour would
+   outrank it; DEC-2026-11-08-30). */
+.st-input {
+  width: 100%; min-height: 44px; padding: 11px 14px; border: 1px solid var(--enki-rule); border-radius: 12px;
+  background: var(--enki-paper-2); color: var(--enki-ink); font: 400 15px/1.4 var(--font-sans), sans-serif; outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.st-input::placeholder { color: var(--enki-label-quiet); }
+.kit-ring { border-color: var(--enki-rule); }
+.st-input:focus-within, .kit-ring:focus-within { border-color: var(--enki-ember); box-shadow: 0 0 0 3px rgba(var(--ember-rgb), 0.13); }
+.st-input[aria-invalid] { border-color: var(--enki-danger); }
+@media (max-width: 767.98px) {
+  .st-input { font-size: 16px; }
+}
+
+/* The windows' corner (components/enki-window.ts ROUND, the shell's .ek-modal-x): its hover, .ek-modal-x:hover's ink and
+   ink-3 rule, for the corners that wear ROUND inline. An inline style has no hover and outranks a class, so the hover
+   reaches past it with !important (DEC-2026-11-08-34). */
+.kit-round:hover { color: var(--enki-ink) !important; border-color: var(--enki-ink-3) !important; }
+
+/* A surface root opts in; zero specificity, so a field may swap the ring
+   for its own border colour. */
+:where(.kit-focus, .kit-focus *):focus-visible {
+  outline: 2px solid var(--enki-ember);
+  outline-offset: 2px;
+}
+
+/* 44 px touch target without changing the layout. */
+@media (pointer: coarse) {
+  :where(.kit-hit) { position: relative; }
+  .kit-hit::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* Out-specifies the global *::-webkit-scrollbar. */
+.kit-noscroll { scrollbar-width: none; }
+.kit-noscroll::-webkit-scrollbar { display: none; }
+
+@keyframes kit-spin { to { transform: rotate(360deg); } }
+@keyframes kit-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes kit-pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.9; } }

@@ -1,0 +1,532 @@
+import { createHash, hkdfSync, randomBytes } from "crypto";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { SignJWT, createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from "jose";
+import { isEmailAllowed, isWalletAllowed, isXAccountAllowed, whitelistStageActive } from "@/lib/allowlist";
+import { encryptString } from "@/lib/crypto";
+import { activeBanFor } from "@/lib/session-user";
+import { activeTrial } from "@/lib/trial";
+import { sanitizeNext, type OAuthErrorCode } from "@/lib/auth/oauth-shared";
+
+export { DEFAULT_NEXT, ERROR_SENTENCES, sanitizeNext, type OAuthErrorCode } from "@/lib/auth/oauth-shared";
+
+/**
+ * Sign in with Google and X on our own session model (Kev, 2026-09-23/24).
+ *
+ * A provider account is one row in auth_identities, keyed (provider, subject),
+ * pointing at a users row. Login resolves that row or creates a user; it
+ * never joins an existing account by email (review, 2026-10-17): a provider's
+ * "verified" proves an inbox once, and addresses change hands (Google says so
+ * for any address that is not @gmail.com without hd). A login whose verified
+ * email already has an account is refused with a sentence: sign in, then
+ * connect the provider from settings, session bound (link intent). The session that
+ * comes out is the ordinary auth_sessions row every other login mints
+ * (lib/user-session), so nothing downstream knows how the user got in.
+ *
+ * Everything the callback has to trust travels in ONE short lived signed
+ * cookie: the CSRF state, the OpenID nonce and the PKCE verifier, bound to the
+ * provider, the intent and the sanitised return path. Nothing is stored
+ * server side between the two legs. The session then travels back to the
+ * browser in a second short lived cookie (the hand over), never in the URL:
+ * a link somebody else crafted carries no cookie, so it cannot log a victim
+ * into the attacker's account.
+ */
+export type Provider = "google" | "x";
+export const PROVIDERS: readonly Provider[] = ["google", "x"];
+export const isProvider = (p: string): p is Provider => (PROVIDERS as readonly string[]).includes(p);
+
+/** A link carries the hash of the session that started it: it completes only while that session lives. */
+export type Intent = { kind: "login" } | { kind: "link"; userId: string; session: string };
+
+export const sessionHash = (token: string): string => createHash("sha256").update(token).digest("hex");
+
+export class OAuthError extends Error {
+  constructor(public readonly code: OAuthErrorCode, detail?: string) {
+    super(detail ?? code);
+    this.name = "OAuthError";
+  }
+}
+
+/** The auth_identities table is missing until the migration runs. */
+export class MissingTableError extends Error {
+  constructor(public readonly table: string) {
+    super(`${table} table missing`);
+    this.name = "MissingTableError";
+  }
+}
+const isMissingTable = (err: unknown): boolean => {
+  const e = err as { code?: unknown; message?: unknown } | null;
+  return !!e && (e.code === "42P01" || e.code === "PGRST205" || /does not exist|Could not find the table/i.test(String(e.message ?? "")));
+};
+
+export const PROVIDER_LABEL: Record<Provider, string> = { google: "Google", x: "X" };
+
+export const ENV_NAMES: Record<Provider, { id: string; secret: string }> = {
+  google: { id: "GOOGLE_OAUTH_CLIENT_ID", secret: "GOOGLE_OAUTH_CLIENT_SECRET" },
+  x: { id: "X_OAUTH_CLIENT_ID", secret: "X_OAUTH_CLIENT_SECRET" },
+};
+
+function providerConfig(provider: Provider): { clientId: string; clientSecret: string } {
+  const clientId = process.env[ENV_NAMES[provider].id];
+  const clientSecret = process.env[ENV_NAMES[provider].secret];
+  if (!clientId || !clientSecret) throw new OAuthError("not_configured", `${ENV_NAMES[provider].id} / ${ENV_NAMES[provider].secret} not set`);
+  return { clientId, clientSecret };
+}
+
+/** Which providers this server can sign in with: both env names of the pair set. */
+export const providerConfigured = (provider: Provider): boolean =>
+  !!process.env[ENV_NAMES[provider].id] && !!process.env[ENV_NAMES[provider].secret];
+
+/** Where Google and X send the browser back: OAUTH_APP_URL, else the app's own URL. Local runs set it to their
+    localhost; NEXT_PUBLIC_APP_URL stays the public host, the wallet JWT's issuer reads it too. */
+export const appUrl = (): string => (process.env.OAUTH_APP_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3008").replace(/\/$/, "");
+export const redirectUri = (provider: Provider): string => `${appUrl()}/api/auth/oauth/${provider}/callback`;
+
+// ── state cookie ───────────────────────────────────────────────────────────
+export const STATE_COOKIE = "enki_oauth";
+export const STATE_COOKIE_PATH = "/api/auth/oauth";
+export const STATE_TTL_S = 5 * 60;
+
+/** One key per purpose, so a state cookie can never pass as a hand over or the reverse. */
+function derivedKey(purpose: "enki-oauth-v1" | "enki-oauth-handover-v1"): Uint8Array {
+  const p = process.env.AUTH_PEPPER;
+  if (!p) throw new Error("AUTH_PEPPER not configured");
+  return new Uint8Array(hkdfSync("sha256", Buffer.from(p, "base64"), new Uint8Array(0), Buffer.from(purpose), 32));
+}
+const stateKey = () => derivedKey("enki-oauth-v1");
+
+export type StateClaims = {
+  provider: Provider;
+  intent: Intent;
+  next: string;
+  state: string;
+  nonce: string;
+  verifier: string;
+};
+
+export async function signState(claims: StateClaims): Promise<string> {
+  return new SignJWT({ ...claims })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime(`${STATE_TTL_S}s`)
+    .sign(stateKey());
+}
+
+/** The claims, or null when the cookie is missing, tampered, expired or for another provider. */
+export async function readState(cookie: string | undefined, provider: Provider): Promise<StateClaims | null> {
+  if (!cookie) return null;
+  try {
+    const { payload } = await jwtVerify(cookie, stateKey());
+    const c = payload as unknown as StateClaims;
+    if (c.provider !== provider) return null;
+    if (typeof c.state !== "string" || typeof c.nonce !== "string" || typeof c.verifier !== "string") return null;
+    if (c.intent?.kind !== "login" && !(c.intent?.kind === "link" && typeof c.intent.userId === "string" && typeof c.intent.session === "string")) return null;
+    return { provider, intent: c.intent, next: sanitizeNext(c.next), state: c.state, nonce: c.nonce, verifier: c.verifier };
+  } catch {
+    return null;
+  }
+}
+
+// ── hand over cookie ───────────────────────────────────────────────────────
+/**
+ * The callback puts the fresh session in this cookie and sends the browser to
+ * /auth/complete, which POSTs /api/auth/oauth/complete to collect it. Only
+ * the browser that finished the provider round trip holds the cookie, and the
+ * POST clears it, so the hand over is bound to that browser and single use.
+ */
+export const HANDOVER_COOKIE = "enki_oauth_done";
+export const HANDOVER_TTL_S = 60;
+
+export type Handover = { token: string; email: string | null; banned: boolean };
+
+export async function signHandover(h: Handover): Promise<string> {
+  return new SignJWT({ ...h })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime(`${HANDOVER_TTL_S}s`)
+    .sign(derivedKey("enki-oauth-handover-v1"));
+}
+
+/** The session, or null when the cookie is missing, tampered, expired or a state cookie. */
+export async function readHandover(cookie: string | undefined): Promise<Handover | null> {
+  if (!cookie) return null;
+  try {
+    const { payload } = await jwtVerify(cookie, derivedKey("enki-oauth-handover-v1"));
+    if (typeof payload.token !== "string" || !payload.token) return null;
+    return { token: payload.token, email: typeof payload.email === "string" ? payload.email : null, banned: payload.banned === true };
+  } catch {
+    return null;
+  }
+}
+
+// ── provider endpoints ─────────────────────────────────────────────────────
+const GOOGLE_DISCOVERY = "https://accounts.google.com/.well-known/openid-configuration";
+const GOOGLE_ISSUERS = ["accounts.google.com", "https://accounts.google.com"];
+const X_AUTHORIZE = "https://x.com/i/oauth2/authorize";
+const X_TOKEN = "https://api.x.com/2/oauth2/token";
+/** Only the two fields we store. No expansions and no further user.fields:
+    those move /2/users/me out of the free tier under Pay Per Use (X staff). */
+export const X_USERINFO = "https://api.x.com/2/users/me?user.fields=profile_image_url";
+
+type GoogleDiscovery = { authorization_endpoint: string; token_endpoint: string; jwks_uri: string };
+let googleDiscovery: Promise<GoogleDiscovery> | null = null;
+function discoverGoogle(): Promise<GoogleDiscovery> {
+  googleDiscovery ??= fetch(GOOGLE_DISCOVERY)
+    .then(async (r) => {
+      if (!r.ok) throw new OAuthError("provider_error", `google discovery ${r.status}`);
+      return (await r.json()) as GoogleDiscovery;
+    })
+    .catch((e) => {
+      googleDiscovery = null;
+      throw e;
+    });
+  return googleDiscovery;
+}
+
+const b64url = (b: Buffer) => b.toString("base64url");
+const pkceChallenge = (verifier: string) => b64url(createHash("sha256").update(verifier).digest());
+
+/** Authorize URL plus the signed cookie value the callback needs. */
+export async function beginAuth(provider: Provider, intent: Intent, next: unknown): Promise<{ url: string; cookie: string }> {
+  const { clientId } = providerConfig(provider);
+  const claims: StateClaims = {
+    provider,
+    intent,
+    next: sanitizeNext(next),
+    state: b64url(randomBytes(24)),
+    nonce: b64url(randomBytes(24)),
+    verifier: b64url(randomBytes(32)),
+  };
+  const params = new URLSearchParams({
+    response_type: "code",
+    client_id: clientId,
+    redirect_uri: redirectUri(provider),
+    state: claims.state,
+    code_challenge: pkceChallenge(claims.verifier),
+    code_challenge_method: "S256",
+  });
+  let base: string;
+  if (provider === "google") {
+    base = (await discoverGoogle()).authorization_endpoint;
+    params.set("scope", "openid email profile");
+    params.set("nonce", claims.nonce);
+  } else {
+    base = X_AUTHORIZE;
+    // No users.email (Kev, 2026-10-17): X's email permission needs terms and privacy pages,
+    // which Enki has not published yet; an X account is known by its numeric id. Adding
+    // users.email here and confirmed_email to X_USERINFO brings it back. No offline.access:
+    // the refresh token is never stored.
+    params.set("scope", "users.read tweet.read");
+  }
+  return { url: `${base}?${params}`, cookie: await signState(claims) };
+}
+
+export type ProviderIdentity = {
+  provider: Provider;
+  subject: string;
+  email: string | null;
+  emailVerified: boolean;
+  handle: string | null;
+  displayName: string | null;
+  avatarUrl: string | null;
+};
+
+async function exchangeCode(provider: Provider, code: string, verifier: string): Promise<{ access_token?: string; id_token?: string }> {
+  const { clientId, clientSecret } = providerConfig(provider);
+  const body = new URLSearchParams({
+    grant_type: "authorization_code",
+    code,
+    redirect_uri: redirectUri(provider),
+    code_verifier: verifier,
+    client_id: clientId,
+  });
+  const headers: Record<string, string> = { "Content-Type": "application/x-www-form-urlencoded" };
+  let endpoint: string;
+  if (provider === "google") {
+    endpoint = (await discoverGoogle()).token_endpoint;
+    body.set("client_secret", clientSecret);
+  } else {
+    endpoint = X_TOKEN;
+    headers.Authorization = `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`;
+  }
+  const res = await fetch(endpoint, { method: "POST", headers, body });
+  if (!res.ok) throw new OAuthError("provider_error", `${provider} token endpoint ${res.status}`);
+  return (await res.json()) as { access_token?: string; id_token?: string };
+}
+
+let googleKeys: JWTVerifyGetKey | null = null;
+async function googleJwks(): Promise<JWTVerifyGetKey> {
+  googleKeys ??= createRemoteJWKSet(new URL((await discoverGoogle()).jwks_uri));
+  return googleKeys;
+}
+
+/** Google's id_token → identity. `keys` is injectable so tests verify against a local JWKS. */
+export async function verifyGoogleIdToken(
+  idToken: string,
+  expected: { clientId: string; nonce: string },
+  keys?: JWTVerifyGetKey,
+): Promise<ProviderIdentity> {
+  let payload: Record<string, unknown>;
+  try {
+    ({ payload } = await jwtVerify(idToken, keys ?? (await googleJwks()), { issuer: GOOGLE_ISSUERS, audience: expected.clientId, requiredClaims: ["exp"] }));
+  } catch (e) {
+    throw new OAuthError("provider_error", `google id_token: ${e instanceof Error ? e.message : "invalid"}`);
+  }
+  if (payload.nonce !== expected.nonce) throw new OAuthError("state_mismatch", "nonce mismatch");
+  if (typeof payload.sub !== "string" || !payload.sub) throw new OAuthError("provider_error", "google id_token without sub");
+  const email = typeof payload.email === "string" ? payload.email.trim().toLowerCase() : null;
+  return {
+    provider: "google",
+    subject: payload.sub,
+    email,
+    emailVerified: !!email && payload.email_verified === true,
+    handle: null,
+    displayName: typeof payload.name === "string" ? payload.name : null,
+    avatarUrl: typeof payload.picture === "string" ? payload.picture : null,
+  };
+}
+
+async function fetchXIdentity(accessToken: string): Promise<ProviderIdentity> {
+  const res = await fetch(X_USERINFO, { headers: { Authorization: `Bearer ${accessToken}` } });
+  if (!res.ok) throw new OAuthError("provider_error", `x users/me ${res.status}`);
+  const { data } = (await res.json()) as {
+    data?: { id?: string; name?: string; username?: string; confirmed_email?: string; profile_image_url?: string };
+  };
+  if (!data?.id) throw new OAuthError("provider_error", "x users/me without id");
+  const email = data.confirmed_email?.trim().toLowerCase() || null;
+  return {
+    provider: "x",
+    subject: data.id,
+    email,
+    emailVerified: !!email,
+    handle: data.username?.replace(/^@/, "").toLowerCase() ?? null,
+    displayName: data.name ?? null,
+    avatarUrl: data.profile_image_url ?? null,
+  };
+}
+
+/** Code + verified state → who the provider says this is. */
+export async function completeAuth(claims: StateClaims, code: string): Promise<ProviderIdentity> {
+  const tokens = await exchangeCode(claims.provider, code, claims.verifier);
+  if (claims.provider === "google") {
+    if (!tokens.id_token) throw new OAuthError("provider_error", "google token response without id_token");
+    return verifyGoogleIdToken(tokens.id_token, { clientId: providerConfig("google").clientId, nonce: claims.nonce });
+  }
+  if (!tokens.access_token) throw new OAuthError("provider_error", "x token response without access_token");
+  return fetchXIdentity(tokens.access_token);
+}
+
+// ── identity → user ────────────────────────────────────────────────────────
+/** inserted: this call wrote the identity row (a link's undo removes only what it wrote). */
+export type Resolved = { userId: string; banned: boolean; allowlisted: boolean; inserted: boolean };
+
+export const emailLookupHash = (email: string) => createHash("sha256").update(email.toLowerCase()).digest("hex");
+
+/**
+ * The users row columns an email fills. Ciphertext needs the field keyring
+ * (FIELD_ENCRYPTION_KEY_B64); without it only the lookup hash is written and
+ * the plaintext stays where every login table keeps it (auth_identities.email,
+ * like password_credentials.email).
+ */
+export function emailColumns(email: string, verified: boolean): Record<string, string | null> {
+  const cols: Record<string, string | null> = {
+    email_lookup_hash: emailLookupHash(email),
+    email_verified_at: verified ? new Date().toISOString() : null,
+  };
+  try {
+    const enc = encryptString(email);
+    Object.assign(cols, { email_ct: enc.encrypted, email_iv: enc.iv, email_tag: enc.authTag, email_kid: enc.kid ?? null });
+  } catch (e) {
+    console.warn("[oauth] email not encrypted into users:", e instanceof Error ? e.message : e);
+  }
+  return cols;
+}
+
+/** The whitelist by what the provider vouches for: a verified email, or the X account's numeric id. */
+export async function identityAllowed(supabase: SupabaseClient, id: ProviderIdentity): Promise<boolean> {
+  if (!whitelistStageActive()) return true;
+  if (id.email && id.emailVerified && (await isEmailAllowed(supabase, id.email))) return true;
+  return id.provider === "x" && !!id.subject && (await isXAccountAllowed(supabase, id.subject));
+}
+
+/**
+ * The whitelist by the account an identity already belongs to: an X account
+ * connected from settings carries no listed email or id of its own, but
+ * the password email, a wallet of the account, or another provider identity
+ * of the same user may be listed. Checked the way the password and the wallet
+ * logins check theirs, every login.
+ */
+export async function accountAllowed(supabase: SupabaseClient, userId: string): Promise<boolean> {
+  const { data: cred, error } = await supabase.from("password_credentials").select("email").eq("user_id", userId).maybeSingle();
+  if (error) throw error;
+  if (cred?.email && (await isEmailAllowed(supabase, cred.email as string))) return true;
+  const { data: wallets, error: walletsErr } = await supabase.from("user_wallets").select("address").eq("user_id", userId).is("removed_at", null);
+  if (walletsErr) throw walletsErr;
+  for (const w of wallets ?? []) if (await isWalletAllowed(supabase, String(w.address))) return true;
+  const { data: ids, error: idsErr } = await supabase
+    .from("auth_identities")
+    .select("provider, subject, email, email_verified, handle")
+    .eq("user_id", userId);
+  if (idsErr) throw idsErr;
+  for (const row of ids ?? []) {
+    const id: ProviderIdentity = {
+      provider: row.provider as Provider, subject: String(row.subject ?? ""), email: (row.email as string | null) ?? null,
+      emailVerified: row.email_verified === true, handle: (row.handle as string | null) ?? null, displayName: null, avatarUrl: null,
+    };
+    if (await identityAllowed(supabase, id)) return true;
+  }
+  return false;
+}
+
+/**
+ * What a login of a known identity refreshes: never its address. A provider account whose holder can change its address
+ * (a Google account on a non-Gmail inbox keeps its subject) would otherwise turn one inbox into two addresses in the door
+ * rule of DEC-2026-11-05-50, since replaced by a code to every address (lib/mfa-recovery.ts sendMailCodes), with no factor asked (DEC-2026-11-05-57). The address stays the one it was
+ * linked with; disconnecting and connecting again changes it, which on an account with a factor takes every factor.
+ */
+const seenRow = (id: ProviderIdentity) => ({
+  handle: id.handle,
+  display_name: id.displayName,
+  avatar_url: id.avatarUrl,
+  last_login_at: new Date().toISOString(),
+});
+const identityRow = (id: ProviderIdentity) => ({ email: id.email, email_verified: id.emailVerified, ...seenRow(id) });
+
+async function insertIdentity(supabase: SupabaseClient, userId: string, id: ProviderIdentity): Promise<void> {
+  const { error } = await supabase
+    .from("auth_identities")
+    .insert({ provider: id.provider, subject: id.subject, user_id: userId, ...identityRow(id) });
+  if (!error) return;
+  if (isMissingTable(error)) throw new MissingTableError("auth_identities");
+  if (error.code === "23505") throw new OAuthError("already_linked", "identity or provider slot taken");
+  throw error;
+}
+
+/**
+ * Whether the session that started a link still lives (review, 2026-10-17): a
+ * password reset or a logout ends it, and with it every link it started, so a
+ * state cookie minted before the reset cannot attach an X account after it.
+ * Sessions key on users.id before a wallet is attached and on the wallet
+ * address after, as the reset that evicts them reads them.
+ */
+export async function linkSessionAlive(supabase: SupabaseClient, intent: { userId: string; session: string }): Promise<boolean> {
+  const { data: wallets, error: walletsErr } = await supabase.from("user_wallets").select("address").eq("user_id", intent.userId).is("removed_at", null);
+  if (walletsErr) throw walletsErr;
+  const keys = [intent.userId, ...(wallets ?? []).map((w) => String(w.address))];
+  const { data: sessions, error } = await supabase
+    .from("auth_sessions")
+    .select("token")
+    .in("wallet_address", keys)
+    .gt("expires_at", new Date().toISOString());
+  if (error) throw error;
+  return (sessions ?? []).some((s) => typeof s.token === "string" && sessionHash(s.token) === intent.session);
+}
+
+/**
+ * Who holds this email: a password account's, or one a Google login stored, confirmed or not. "live" when any of
+ * them is not deleted (an orphan credential counts as live), "deleted" when only deleted accounts hold it.
+ */
+async function emailHolder(supabase: SupabaseClient, email: string): Promise<"live" | "deleted" | null> {
+  const [users, creds] = await Promise.all([
+    supabase.from("users").select("id").eq("email_lookup_hash", emailLookupHash(email)).limit(10),
+    supabase.from("password_credentials").select("user_id").eq("email", email.trim().toLowerCase()).limit(10),
+  ]);
+  if (users.error) throw users.error;
+  if (creds.error) throw creds.error;
+  const ids = [...new Set([...(users.data ?? []).map((u) => String(u.id)), ...(creds.data ?? []).map((c) => String(c.user_id))])];
+  if (!ids.length) return null;
+  const { data: rows, error } = await supabase.from("users").select("id, deleted_at").in("id", ids);
+  if (error) throw error;
+  return ids.some((uid) => !(rows ?? []).find((r) => r.id === uid)?.deleted_at) ? "live" : "deleted";
+}
+
+async function createUser(supabase: SupabaseClient, id: ProviderIdentity): Promise<string> {
+  const { data: user, error } = await supabase
+    .from("users")
+    .insert({
+      account_status: "active",
+      // Where the account came from (users.origin; the CHECK takes google and x after SQL 32).
+      origin: id.provider,
+      display_name: id.displayName,
+      avatar_url: id.avatarUrl,
+      // A verified Google address only: an X account's (maybe stale) one stays on its identity row.
+      ...(id.provider === "google" && id.email && id.emailVerified ? emailColumns(id.email, true) : {}),
+    })
+    .select("id")
+    .single();
+  if (error || !user) throw error ?? new Error("users insert returned nothing");
+  return user.id as string;
+}
+
+/**
+ * (a) known identity → its user, admitted by the identity or by the account
+ * it belongs to; (b) login with a verified email an account already holds →
+ * email_in_use; (c) login, nobody → whitelist check, then a fresh user; (d) link →
+ * attach to the session user, already_linked when the identity belongs to
+ * someone else. Then the ban flag, kept apart from allowlisted so a banned
+ * login still gets the gate cookie and can reach /banned.
+ */
+/** trialPass: this browser holds a trial code's pass (lib/trial), so a login off the list may go on to spend it. */
+export async function resolveIdentity(supabase: SupabaseClient, id: ProviderIdentity, intent: Intent, trialPass = false): Promise<Resolved> {
+  const { data: existing, error: lookupErr } = await supabase
+    .from("auth_identities")
+    .select("user_id")
+    .eq("provider", id.provider)
+    .eq("subject", id.subject)
+    .maybeSingle();
+  if (lookupErr) {
+    if (isMissingTable(lookupErr)) throw new MissingTableError("auth_identities");
+    throw lookupErr;
+  }
+  const touch = () =>
+    supabase.from("auth_identities").update(seenRow(id)).eq("provider", id.provider).eq("subject", id.subject);
+
+  // A deleted account stays deleted: a provider login must not bring it back, nor a link attach to it.
+  const refuseDeleted = async (uid: string) => {
+    const { data: account, error: accountErr } = await supabase.from("users").select("deleted_at").eq("id", uid).maybeSingle();
+    if (accountErr) throw accountErr;
+    if (account?.deleted_at) throw new OAuthError("account_deleted");
+  };
+  let userId: string;
+  let allowlisted = false;
+  let inserted = false;
+  if (intent.kind === "link") {
+    if (existing && existing.user_id !== intent.userId) throw new OAuthError("already_linked", "identity belongs to another user");
+    userId = intent.userId;
+    // Before writing: a deletion that finishes later evicts the link's session first, and the callback's second
+    // session check then removes what this call wrote (review, 2026-10-17).
+    await refuseDeleted(userId);
+    if (existing) await touch();
+    else {
+      await insertIdentity(supabase, userId, id);
+      inserted = true;
+    }
+  } else {
+    allowlisted = (await identityAllowed(supabase, id)) || (!!existing && (await accountAllowed(supabase, existing.user_id as string)));
+    // Off the list, a trial lets the login on (Kev, 2026-10-26: testers sign in with their own account): a code this
+    // browser redeemed at /gate, or the account's running trial. The callback spends or reads it before any session.
+    if (!allowlisted && !trialPass && !(existing && (await activeTrial(supabase, existing.user_id as string)))) {
+      throw new OAuthError("not_whitelisted");
+    }
+    if (existing) {
+      userId = existing.user_id as string;
+      await touch();
+    } else {
+      // Never a join, never a second account under the same address: the owner signs in and connects it.
+      const holder = id.email && id.emailVerified ? await emailHolder(supabase, id.email) : null;
+      if (holder === "live") throw new OAuthError("email_in_use");
+      if (holder === "deleted") throw new OAuthError("account_deleted"); // a deleted account stays deleted
+      userId = await createUser(supabase, id);
+      try {
+        await insertIdentity(supabase, userId, id);
+      } catch (e) {
+        await supabase.from("users").delete().eq("id", userId);
+        throw e;
+      }
+      inserted = true;
+    }
+    await refuseDeleted(userId);
+  }
+  // A link has no use for it, and a read that failed here would leave the row just written, with no mail ever.
+  const banned = intent.kind !== "link" && !!(await activeBanFor(supabase, userId));
+  return { userId, banned, allowlisted, inserted };
+}

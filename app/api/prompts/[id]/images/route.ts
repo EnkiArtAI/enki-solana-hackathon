@@ -1,0 +1,87 @@
+import { NextResponse } from "next/server";
+import { getSupabaseServerClient } from "@/lib/supabaseServer";
+import { isListed } from "@/lib/prompt-visibility";
+import { mayShowAdult, viewer } from "@/lib/adult-content";
+import { dbUnavailableResponse, isDbUnreachable } from "@/lib/db-error";
+import { hiddenOwners } from "@/lib/hidden-owners";
+import { publicReferences } from "@/lib/public-references";
+import { ignoredIds, withoutIgnored } from "@/lib/ignores";
+
+/**
+ * What people made with a prompt and chose to show (Kev, 2026-10-08). Every
+ * generation is private until its owner makes it public, in My Gallery or in
+ * the image UI's history; uploads are never public. Only a listed prompt shows
+ * them, and 18+ images only to a viewer who may see 18+. Each carries who made
+ * it, for the strip's hover (Kev, 2026-10-13: the maker's name, a link to
+ * their profile unless it is you), by handle and display name, never by id,
+ * and the references it was made with where its owner shows them (DEC-514).
+ */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const LIMIT = 24;
+
+type Maker = { handle: string | null; name: string | null };
+
+/** The makers of these rows, by user id; one read for the page. */
+async function makersOf(supabase: ReturnType<typeof getSupabaseServerClient>, rows: { user_id: unknown }[]): Promise<Map<string, Maker>> {
+  const ids = [...new Set(rows.map((r) => String(r.user_id ?? "")).filter(Boolean))];
+  const makers = new Map<string, Maker>();
+  if (!ids.length) return makers;
+  const { data, error } = await supabase.from("users").select("id, handle, display_name").in("id", ids);
+  if (error) throw error;
+  for (const u of data ?? []) {
+    makers.set(String(u.id), { handle: typeof u.handle === "string" && u.handle ? u.handle : null, name: typeof u.display_name === "string" && u.display_name ? u.display_name : null });
+  }
+  return makers;
+}
+
+export async function GET(req: Request, context: { params: Promise<{ id: string }> }) {
+  const { id } = await context.params;
+  if (!UUID.test(id)) return NextResponse.json({ error: "Invalid prompt id" }, { status: 400 });
+  try {
+    const supabase = getSupabaseServerClient();
+    const { data: prompt, error } = await supabase
+      .from("prompts")
+      .select("id, creator_id, is_listed, listing_status, deleted_at, is_adult")
+      .eq("id", id)
+      .maybeSingle();
+    if (error) throw error;
+    const v = await viewer(supabase, req);
+    // A prompt that is not on sale, or 18+ to someone who may not see it, shows nothing.
+    if (!prompt || !isListed(prompt) || (prompt.is_adult && !mayShowAdult(v, prompt.creator_id))) {
+      return NextResponse.json({ images: [] });
+    }
+    // Whom the viewer ignores leaves the strip, as the feed (Kev, 2026-10-29). Show ignored is the feed's filter only.
+    const ignored = await ignoredIds(supabase, v.userId);
+    let images = withoutIgnored(supabase
+      .from("generated_images")
+      .select("id, user_id, storage_url, preview_url, thumbnail_url, created_at")
+      .eq("prompt_id", id)
+      .eq("visibility", "public")
+      .eq("is_uploaded", false)
+      .is("deleted_at", null), "user_id", ignored);
+    if (!v.showAdult) images = images.eq("is_adult", false);
+    const { data, error: readError } = await images.order("created_at", { ascending: false }).limit(LIMIT);
+    if (readError) throw readError;
+    // Images of a banned or deleted account leave the row, as from every public
+    // read; a hidden creator's prompt shows none.
+    const hidden = await hiddenOwners(supabase, [String(prompt.creator_id ?? ""), ...(data ?? []).map((r) => String(r.user_id ?? ""))]);
+    if (!hidden) return NextResponse.json({ error: "Could not load the images" }, { status: 500 });
+    if (hidden.has(String(prompt.creator_id))) return NextResponse.json({ images: [] });
+    const shown = (data ?? []).filter((r) => !hidden.has(String(r.user_id)));
+    const [makers, references] = await Promise.all([makersOf(supabase, shown), publicReferences(supabase, shown.map((r) => String(r.id)))]);
+    return NextResponse.json({
+      images: shown.map((r) => ({
+        id: r.id,
+        url: r.preview_url ?? r.storage_url,
+        thumbnailUrl: r.thumbnail_url ?? r.preview_url ?? r.storage_url,
+        createdAt: r.created_at,
+        maker: { ...(makers.get(String(r.user_id)) ?? { handle: null, name: null }), mine: v.userId !== null && String(r.user_id) === v.userId },
+        references: references.get(String(r.id)) ?? [],
+      })),
+    });
+  } catch (e) {
+    if (isDbUnreachable(e)) return dbUnavailableResponse();
+    console.error("prompt images read failed:", e instanceof Error ? e.message : e);
+    return NextResponse.json({ error: "Could not load the images" }, { status: 500 });
+  }
+}

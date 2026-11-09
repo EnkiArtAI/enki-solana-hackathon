@@ -1,0 +1,226 @@
+/**
+ * Shared quote computation for generation payments (backlog #2).
+ *
+ * Loads everything the split needs from the server side ONLY — prompt price
+ * and artist wallet from the DB, model cost from server pricing. Used by the
+ * intent endpoint; the read-only quote endpoint can adopt it in a follow-up
+ * so the two paths can never drift apart.
+ *
+ * Returns a discriminated result instead of throwing on expected states so
+ * routes map each case to the right HTTP status without string matching.
+ */
+import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  UnknownModelError,
+  computeGenerationSplit,
+  modelLegMicro,
+  usdToMicro,
+  type GenerationSplit,
+} from "@/lib/payments/generation-pricing";
+import {
+  applyRuleToSplit,
+  resolvePricingRule,
+  type AppliedRule,
+} from "@/lib/payments/pricing-rules";
+import { isListed, isPublicText } from "@/lib/prompt-visibility";
+import { resolveOwnerIds } from "@/lib/session-user";
+import { hiddenOwners } from "@/lib/hidden-owners";
+import { loadPriceCells, priceCellFor } from "@/lib/generation/price-cells";
+import { dbOutage, isDbUnreachable, type DbOutage } from "@/lib/db-error";
+import { videoColumns } from "@/lib/marketplace/video-columns";
+import { allowsReferences, REFERENCES_OFF } from "@/lib/prompt-references";
+import { videoSplit, type VideoLeg } from "@/lib/video/charge";
+
+export interface QuoteInput {
+  /** Absent for the buyer's own prompt: no artist, so no artist leg. */
+  promptId?: string;
+  modelFamily: string;
+  resolution?: "1K" | "2K" | "4K";
+  /** Boost = the vendor-direct route; its REAL cost prices the model leg. */
+  boost?: boolean;
+  /** gpt quality lever — feeds the boost route's price where the model has one. */
+  quality?: "low" | "medium" | "high";
+  /** Reference images sent along: each one is image-checked, and the buyer pays it. */
+  referenceImageCount?: number;
+  /** requireAuth's userId (wallet or users.id) — enables DB pricing rules. */
+  buyer?: string;
+  /** The buyer's session: lets a creator through to their own prompt that is not live. */
+  sessionToken?: string | null;
+  /** The rail's own fee rate where it differs from PRICING_POLICY's (x402: X402_ENKI_FEE_BPS). */
+  enkiFeeBps?: number;
+  /**
+   * x402 only: Enki sells the render and owes the artist (licence_credits), so
+   * a priced prompt whose artist has no usable payout wallet still sells, the
+   * share owed to the account (Kev, 2026-10-18: "all prompts must be accessible").
+   */
+  artistWalletOptional?: boolean;
+  /** One video (lib/video/quote): its own leg and fee, no price cell and no pricing rule, which could take it under the provider's bill. */
+  video?: VideoLeg;
+}
+
+export type QuoteResult =
+  | {
+      ok: true;
+      /** null for free prompts — the split then has no artist leg — and, with artistWalletOptional, for an artist without one. */
+      artistWallet: string | null;
+      /** The account the artist share is owed to; null for free prompts. */
+      artistId: string | null;
+      split: GenerationSplit;
+      /** DB pricing rule that discounted this quote, if any. */
+      appliedRule: AppliedRule | null;
+    }
+  | { ok: false; status: 400 | 404 | 422 | 500; error: string }
+  | DbOutage;
+
+export type PayoutWallet = { ok: true; wallet: string } | { ok: false; status: 422 | 500; error: string } | DbOutage;
+
+/**
+ * The wallet a creator's artist share is paid to — from the DB, never from
+ * the client. Live schema (2026-07-12): users.wallet_address does NOT exist;
+ * it is the creator's live Solana entry in user_wallets (payments run on
+ * Solana only). Without one the share has nowhere to go, so a paid prompt
+ * can neither be quoted nor released.
+ */
+export async function artistPayoutWallet(supabase: SupabaseClient, creatorId: string): Promise<PayoutWallet> {
+  const { data: wallets, error } = await supabase
+    .from("user_wallets")
+    .select("address")
+    .eq("user_id", creatorId)
+    .eq("chain_family", "solana")
+    .is("removed_at", null)
+    .limit(1);
+  if (error) {
+    if (isDbUnreachable(error)) return dbOutage();
+    console.error("[payments/quote] creator wallet lookup failed:", error.message);
+    return { ok: false, status: 500, error: "Failed to load creator" };
+  }
+  const wallet: string | null = wallets?.[0]?.address ?? null;
+  if (!wallet || wallet === "legacy-unbound") {
+    return { ok: false, status: 422, error: "Artist payout wallet not configured for this prompt" };
+  }
+  // A real base58 Solana pubkey always contains uppercase chars; a non-0x
+  // all-lowercase address is a corrupted legacy row (an earlier bug
+  // lowercased Solana wallets) that base58-decodes to the WRONG key. Refuse
+  // to pay a wallet nobody controls.
+  if (!wallet.startsWith("0x") && wallet === wallet.toLowerCase()) {
+    return { ok: false, status: 422, error: "Artist payout wallet must be re-linked before this prompt can sell" };
+  }
+  return { ok: true, wallet };
+}
+
+/** A database that cannot be reached is an outage (503), never a price, a 404 or a 500. */
+export async function computeQuote(supabase: SupabaseClient, input: QuoteInput): Promise<QuoteResult> {
+  try {
+    return await quote(supabase, input);
+  } catch (e) {
+    if (isDbUnreachable(e)) return dbOutage();
+    throw e;
+  }
+}
+
+async function quote(
+  supabase: SupabaseClient,
+  { promptId, modelFamily, resolution, boost, quality, referenceImageCount, buyer, sessionToken, enkiFeeBps, artistWalletOptional, video }: QuoteInput,
+): Promise<QuoteResult> {
+  // 1. Prompt price comes from the DB — never from the client.
+  //    Live schema (verified 2026-07-12): prompts has creator_id +
+  //    price_usd_cents — NOT user_id/price as older code assumed.
+  //    No promptId means the buyer's own prompt: nothing to look up, no artist.
+  let prompt: {
+    price_usd_cents: number | null;
+    creator_id: string | null;
+    prompt_type: string | null;
+    is_free_showcase: boolean | null;
+  } | null = null;
+  if (promptId) {
+    const { data, error: promptError } = await supabase
+      .from("prompts")
+      .select("id, price_usd_cents, creator_id, prompt_type, is_free_showcase, is_listed, listing_status, deleted_at")
+      .eq("id", promptId)
+      .maybeSingle();
+    if (promptError) {
+      if (isDbUnreachable(promptError)) return dbOutage();
+      console.error("[payments/quote] prompt lookup failed:", promptError.message);
+      return { ok: false, status: 500, error: "Failed to load prompt" };
+    }
+    // Only a live prompt is for sale: a draft, a deleted or a delisted one
+    // answers like a missing one. Every paid path prices through here, so the
+    // intent, the authorisation and the generation inherit it. Its creator is
+    // let through to their own (the generator page opens for it), recognised
+    // the way a save recognises them; a lookup that fails lets nobody through.
+    const mine = async () =>
+      ((await resolveOwnerIds(supabase, sessionToken ?? null).catch((e) => {
+        if (isDbUnreachable(e)) throw e; // an outage, which computeQuote answers with 503
+        return null;
+      })) ?? []).includes(String(data?.creator_id));
+    if (!data || (!isListed(data) && !(await mine()))) {
+      return { ok: false, status: 404, error: "Prompt not found" };
+    }
+    // A banned or deleted creator's prompt is not sold: nobody pays its share.
+    const hidden = await hiddenOwners(supabase, [String(data.creator_id ?? "")]);
+    if (!hidden) return { ok: false, status: 500, error: "Failed to load prompt" };
+    if (hidden.has(String(data.creator_id))) return { ok: false, status: 404, error: "Prompt not found" };
+    // Its creator switched buyers' references off (SQL 62): refused before anything is priced, so no intent is ever
+    // written with them. Its creator's own test render is as ever.
+    if (referenceImageCount && !(await allowsReferences(supabase, promptId)) && !(await mine())) {
+      return { ok: false, status: 422, error: `${REFERENCES_OFF} Nothing was charged.` };
+    }
+    // A video prompt's words go to a video generator. quoteVideo refuses an image prompt; this is the way back, for every path that names an image model. Its creator's own test render is as ever.
+    if (!video && (await videoColumns(supabase))) {
+      const { data: made, error: madeError } = await supabase.from("prompts").select("media_type").eq("id", promptId).maybeSingle();
+      if (madeError) return { ok: false, status: 500, error: "Failed to load prompt" };
+      if (made?.media_type === "video" && !(await mine())) return { ok: false, status: 422, error: "This prompt makes videos." };
+    }
+    prompt = data;
+  }
+
+  // Free by the database's word ("free", "showcase"), the rule the agent rail
+  // asks too. This compared the client's word "free-prompt", which no row
+  // holds, so a free prompt saved with a price was quoted an artist share.
+  const isFree = !prompt || isPublicText(prompt);
+  const priceCents = typeof prompt?.price_usd_cents === "number" ? prompt.price_usd_cents : 0;
+  const artistPriceMicro = isFree ? 0 : usdToMicro(priceCents / 100);
+
+  // 2. Model cost comes from server-side pricing — never from the client:
+  //    the priced route's last bill where one was recorded, else the table.
+  let modelCostMicro = video?.modelCostMicro ?? 0;
+  if (!video) {
+    const cellUsd = priceCellFor(await loadPriceCells(supabase), { modelFamily, resolution: resolution ?? "2K", quality, boost });
+    try {
+      // The host's price plus the checks every paid render runs, which the buyer pays.
+      modelCostMicro = modelLegMicro(modelFamily, resolution, { boost, quality, references: referenceImageCount ?? 0, cellUsd });
+    } catch (error) {
+      if (error instanceof UnknownModelError) {
+        return { ok: false, status: 400, error: error.message };
+      }
+      throw error;
+    }
+  }
+
+  // 3. Artist payout wallet comes from the DB — never from the client.
+  let artistWallet: string | null = null;
+  let artistId: string | null = null;
+  if (artistPriceMicro > 0) {
+    if (!prompt?.creator_id) {
+      return { ok: false, status: 422, error: "Prompt has no associated creator" };
+    }
+    artistId = prompt.creator_id;
+    const payout = await artistPayoutWallet(supabase, prompt.creator_id);
+    // No wallet, or one that must be re-linked (422), is no reason to refuse when Enki owes the share; a failed lookup still is.
+    if (payout.ok) artistWallet = payout.wallet;
+    else if (!(artistWalletOptional && payout.status === 422)) return payout;
+  }
+
+  let split = video ? videoSplit(artistPriceMicro, video) : computeGenerationSplit(artistPriceMicro, modelCostMicro, { enkiFeeBps });
+
+  // 4. DB pricing rules (discount campaigns) — best match, never touches the
+  //    artist share. Applied here so quote and intent can't disagree.
+  let appliedRule: AppliedRule | null = null;
+  if (buyer && !video) {
+    appliedRule = await resolvePricingRule(supabase, { buyerWalletOrId: buyer, modelFamily, promptId, excludeFreeGeneration: true });
+    if (appliedRule?.effect.type === "free_generation") appliedRule = null;
+    if (appliedRule) split = applyRuleToSplit(split, appliedRule);
+  }
+
+  return { ok: true, artistWallet, artistId, split, appliedRule };
+}
